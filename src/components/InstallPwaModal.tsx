@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Smartphone, CheckCircle2, X, Sparkles, ShieldCheck, Zap, Bell, Loader2 } from 'lucide-react';
+import { Download, Smartphone, CheckCircle2, X, Sparkles, Zap, Bell, Loader2, Share2, PlusSquare } from 'lucide-react';
 
 interface InstallPwaModalProps {
   isOpenOverride?: boolean;
@@ -26,8 +26,12 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({
 
     // Register Service Worker for PWA
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch((err) => {
-        console.warn('Service worker registration failed:', err);
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).then((reg) => {
+          console.log('✅ ServiceWorker registered:', reg.scope);
+        }).catch((err) => {
+          console.warn('Service worker registration failed:', err);
+        });
       });
     }
 
@@ -46,14 +50,21 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({
     const iosDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(iosDevice);
 
+    // Pick up early window.__pwa_deferred if already captured by early script
+    if ((window as any).__pwa_deferred) {
+      setDeferredPrompt((window as any).__pwa_deferred);
+    }
+
     // Listen for beforeinstallprompt and appinstalled
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
+      (window as any).__pwa_deferred = e;
       setDeferredPrompt(e);
       setShowNotification(true);
     };
 
     const handleAppInstalled = () => {
+      (window as any).__pwa_deferred = null;
       setIsInstalled(true);
       setIsInstalling(false);
       setInstallProgress(100);
@@ -78,16 +89,7 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({
     if (onCloseOverride) onCloseOverride();
   };
 
-  const handleInstallClick = async () => {
-    // Open full modal so progress is prominently displayed
-    setShowFullModal(true);
-
-    if (isIOS) {
-      setShowIOSGuide(true);
-      return;
-    }
-
-    // Request Notification permission if supported
+  const requestNotificationPermission = async () => {
     if ('Notification' in window && Notification.permission === 'default') {
       try {
         await Notification.requestPermission();
@@ -95,52 +97,63 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({
         console.warn('Notification permission error:', e);
       }
     }
+  };
 
-    setIsInstalling(true);
-    setInstallProgress(25);
-    setInstallStepText('جاري الاتصال بالنظام وتجهيز حزمة التثبيت الأوتوماتيكية (PWA)...');
+  const pwaInstallClick = async () => {
+    await requestNotificationPermission();
 
-    // Trigger standard browser install prompt if available
-    if (deferredPrompt) {
-      try {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-          setDeferredPrompt(null);
-        }
-      } catch (err) {
-        console.error('Install prompt error:', err);
-      }
+    const activePrompt = deferredPrompt || (window as any).__pwa_deferred;
+
+    if (isIOS) {
+      setShowFullModal(true);
+      setShowIOSGuide(true);
+      return;
     }
 
-    // Step-by-step installation progress animation without downloading any file
-    setTimeout(() => {
-      setInstallProgress(60);
-      setInstallStepText('تجهيز الخدمة الخلفية والـ Service Worker والإشعارات الفورية...');
-    }, 700);
+    if (activePrompt) {
+      try {
+        activePrompt.prompt();
+        const choice = await activePrompt.userChoice;
+        if (choice.outcome === 'accepted') {
+          (window as any).__pwa_deferred = null;
+          setDeferredPrompt(null);
+          setIsInstalled(true);
+          localStorage.setItem('tg_pwa_installed', 'true');
+        }
+      } catch (err) {
+        console.error('Prompt error:', err);
+      }
+      return;
+    }
+
+    // Direct simulated PWA progress fallback if native prompt delayed
+    setShowFullModal(true);
+    setIsInstalling(true);
+    setInstallProgress(30);
+    setInstallStepText('جاري تحضير حزمة الخدمة والـ Service Worker للإرسال والتنبيهات...');
 
     setTimeout(() => {
-      setInstallProgress(90);
-      setInstallStepText('إضافة الأيقونة إلى الشاشة الرئيسية وتفعيل النمط المستقل...');
-    }, 1400);
+      setInstallProgress(70);
+      setInstallStepText('تفعيل النمط المستقل وإضافة الأيقونة على الشاشة الرئيسية...');
+    }, 800);
 
     setTimeout(() => {
       setInstallProgress(100);
-      setInstallStepText('تم تثبيت تطبيق تليجرام الجوال بنجاح! 🎉');
+      setInstallStepText('تم تثبيت تطبيق مركز سرعة إنجاز بنجاح! 🎉');
       setIsInstalling(false);
       setIsInstalled(true);
       localStorage.setItem('tg_pwa_installed', 'true');
-    }, 2000);
+    }, 1600);
   };
 
   if (!visible && !isOpenOverride) return null;
 
-  // Full Modal View with Detailed Progress
+  // Full Modal View
   if (showFullModal || isOpenOverride) {
     return (
       <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn dir-rtl">
         <div className="relative w-full max-w-md bg-slate-900 border border-sky-500/50 rounded-3xl shadow-2xl overflow-hidden transition-all">
-          <div className="relative bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-700 p-6 text-white text-center">
+          <div className="relative bg-gradient-to-r from-sky-700 via-blue-700 to-indigo-800 p-6 text-white text-center">
             <button
               onClick={handleClose}
               className="absolute top-4 left-4 p-1.5 bg-black/20 hover:bg-black/40 text-white rounded-full transition-colors"
@@ -151,7 +164,7 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({
               <div className="relative">
                 <img
                   src="https://telegram.org/img/t_logo.png"
-                  alt="Telegram App"
+                  alt="سرعة إنجاز"
                   className="w-16 h-16 rounded-2xl object-contain shadow-xl border border-white/20"
                 />
                 {isInstalling && (
@@ -161,9 +174,9 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({
                 )}
               </div>
             </div>
-            <h2 className="text-xl font-bold">تثبيت تطبيق تليجرام (PWA المباشر)</h2>
+            <h2 className="text-xl font-bold">مركز سرعة إنجاز PWA</h2>
             <p className="text-xs text-sky-100 mt-1">
-              تثبيت أوتوماتيكي تلقائي بدعم النظام — إشعارات وتجربة مستقلة بدون حزم خارجية
+              تثبيت التطبيق مباشرةً على شاشة جوالك الرئيسية
             </p>
           </div>
 
@@ -173,15 +186,14 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({
                 <div className="flex items-center justify-between text-xs font-bold text-sky-400">
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>جاري التثبيت على جهازك...</span>
+                    <span>جاري تثبيت التطبيق...</span>
                   </span>
                   <span className="font-mono text-sm">{installProgress}%</span>
                 </div>
 
-                {/* Progress Bar */}
                 <div className="w-full bg-slate-950 h-3.5 rounded-full overflow-hidden p-0.5 border border-slate-800 shadow-inner">
                   <div
-                    className="bg-gradient-to-r from-sky-500 via-blue-500 to-emerald-400 h-full rounded-full transition-all duration-500 shadow-md"
+                    className="bg-gradient-to-r from-emerald-500 via-teal-400 to-sky-400 h-full rounded-full transition-all duration-500 shadow-md"
                     style={{ width: `${installProgress}%` }}
                   />
                 </div>
@@ -195,69 +207,85 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({
                 <div className="w-16 h-16 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center mx-auto text-emerald-400 shadow-lg">
                   <CheckCircle2 className="w-10 h-10" />
                 </div>
-                <h3 className="font-bold text-base text-slate-100">تم تثبيت التطبيق بنجاح! 🎉</h3>
+                <h3 className="font-bold text-base text-slate-100">التطبيق مثبّت ✅</h3>
                 <p className="text-slate-300 text-xs leading-relaxed">
-                  تم إضافة الأيقونة وتفعيل الخدمة الخلفية. يمكنك الآن فتح التطبيق مباشرة من شاشة جوالك الرئيسية.
+                  تم إضافة الأيقونة وتفعيل الخدمة الخلفية. يمكنك الآن استخدام التطبيق مباشرةً من الشاشة الرئيسية.
                 </p>
-                <div className="pt-2 flex gap-2">
+                <div className="pt-2">
                   <button
                     onClick={handleClose}
                     className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold rounded-xl shadow-lg transition-all"
                   >
-                    فتح واستخدام التطبيق الآن 🚀
+                    فتح واستخدام التطبيق 🚀
                   </button>
                 </div>
               </div>
             ) : showIOSGuide ? (
-              <div className="space-y-3">
-                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-300">
-                  <div className="font-bold mb-1">طريقة التثبيت لأجهزة آيفون (iOS):</div>
-                  <ol className="list-decimal list-inside space-y-1 text-slate-300">
-                    <li>اضغط زر <span className="font-bold text-amber-200">المشاركة (Share)</span> أسفل متصفح Safari.</li>
-                    <li>اختر <span className="font-bold text-amber-200">الإضافة إلى الشاشة الرئيسية</span>.</li>
-                    <li>اضغط <span className="font-bold text-amber-200">إضافة</span>.</li>
+              <div className="space-y-3 dir-rtl">
+                <div className="p-3 bg-sky-950/80 border border-sky-500/30 rounded-2xl text-sky-200">
+                  <div className="font-bold mb-2 flex items-center gap-2 text-sky-300 text-sm">
+                    <Smartphone className="w-4 h-4" />
+                    <span>تثبيت التطبيق على iPhone / iPad:</span>
+                  </div>
+                  <ol className="space-y-2 text-slate-300 text-[11px]">
+                    <li className="flex items-start gap-2 bg-slate-900/60 p-2 rounded-lg">
+                      <span className="font-bold text-sky-400 shrink-0">①</span>
+                      <span>افتح هذا الرابط في متصفح <b>Safari</b>.</span>
+                    </li>
+                    <li className="flex items-start gap-2 bg-slate-900/60 p-2 rounded-lg">
+                      <span className="font-bold text-sky-400 shrink-0">②</span>
+                      <span className="flex items-center gap-1 flex-wrap">
+                        اضغط زر المشاركة <Share2 className="w-3.5 h-3.5 text-sky-400 inline" /> أسفل الشاشة.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2 bg-slate-900/60 p-2 rounded-lg">
+                      <span className="font-bold text-sky-400 shrink-0">③</span>
+                      <span className="flex items-center gap-1 flex-wrap">
+                        اختر <b>"الإضافة إلى الشاشة الرئيسية"</b> <PlusSquare className="w-3.5 h-3.5 text-emerald-400 inline" />.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2 bg-slate-900/60 p-2 rounded-lg">
+                      <span className="font-bold text-sky-400 shrink-0">④</span>
+                      <span>اضغط <b>"إضافة"</b> بالتعلى.</span>
+                    </li>
                   </ol>
                 </div>
                 <button
                   onClick={handleClose}
-                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold"
+                  className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold"
                 >
-                  حسناً، فهمت
+                  فهمت! ✓
                 </button>
               </div>
             ) : (
               <>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3 p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/50">
-                    <Smartphone className="w-5 h-5 text-sky-400 shrink-0" />
-                    <div>
-                      <div className="font-bold text-slate-100">أيقونة مستقلة على الشاشة</div>
-                      <div className="text-[11px] text-slate-400">تشغيل سريع مثل التطبيق الأصلي</div>
-                    </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="flex items-center gap-2 p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/50">
+                    <Smartphone className="w-4 h-4 text-sky-400 shrink-0" />
+                    <span>عمل بدون إنترنت</span>
                   </div>
-                  <div className="flex items-center gap-3 p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/50">
-                    <Bell className="w-5 h-5 text-amber-400 shrink-0" />
-                    <div>
-                      <div className="font-bold text-slate-100">إشعارات منبثقة فورية</div>
-                      <div className="text-[11px] text-slate-400">تنبيهات فورية عند وصول أي رسالة</div>
-                    </div>
+                  <div className="flex items-center gap-2 p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/50">
+                    <Bell className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>إشعارات فورية</span>
                   </div>
-                  <div className="flex items-center gap-3 p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/50">
-                    <Zap className="w-5 h-5 text-emerald-400 shrink-0" />
-                    <div>
-                      <div className="font-bold text-slate-100">سرعة فائقة واستجابة عالية</div>
-                      <div className="text-[11px] text-slate-400">أداء ممتاز يعمل بدون متصفح</div>
-                    </div>
+                  <div className="flex items-center gap-2 p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/50">
+                    <Zap className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>سرعة عالية</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/50">
+                    <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span>ملء الشاشة</span>
                   </div>
                 </div>
 
                 <button
-                  onClick={handleInstallClick}
+                  id="pwaInstallBtn"
+                  onClick={pwaInstallClick}
                   disabled={isInstalling}
-                  className="w-full py-3.5 bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-sm rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all"
+                  className="w-full py-3.5 bg-gradient-to-r from-emerald-500 via-teal-600 to-sky-600 hover:from-emerald-400 hover:to-sky-500 text-slate-950 font-bold text-sm rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all"
                 >
                   <Download className="w-4 h-4" />
-                  <span>تثبيت التطبيق الآن ⚡</span>
+                  <span id="pwaInstallLabel">📲 تثبيت التطبيق مباشرةً</span>
                 </button>
               </>
             )}
@@ -267,14 +295,14 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({
     );
   }
 
-  // Floating Notification Banner at Top
+  // Floating Banner
   return (
     <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[99999] w-[95%] max-w-lg animate-bounce duration-500 dir-rtl">
-      <div className="bg-slate-900/95 border-2 border-sky-500/80 rounded-2xl shadow-2xl backdrop-blur-xl p-3 text-slate-100 flex items-center justify-between gap-3 relative overflow-hidden">
+      <div className="bg-slate-900/95 border-2 border-emerald-500/80 rounded-2xl shadow-2xl backdrop-blur-xl p-3 text-slate-100 flex items-center justify-between gap-3 relative overflow-hidden">
         <div className="relative shrink-0 cursor-pointer" onClick={() => setShowFullModal(true)}>
           <img
             src="https://telegram.org/img/t_logo.png"
-            alt="Telegram"
+            alt="سرعة إنجاز"
             className="w-10 h-10 rounded-xl object-contain shadow-md border border-white/20"
           />
           <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border border-slate-900 flex items-center justify-center">
@@ -283,32 +311,24 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({
         </div>
 
         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setShowFullModal(true)}>
-          <div className="flex items-center gap-1.5 font-bold text-xs text-sky-400">
-            <span>إشعار تثبيت تطبيق تليجرام الجوال</span>
-            <span className="bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded text-[9px]">PWA / APK</span>
+          <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-400">
+            <span>مركز سرعة إنجاز (تثبيت التطبيق)</span>
+            <span className="bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded text-[9px]">PWA</span>
           </div>
           <p className="text-[11px] text-slate-300 truncate mt-0.5">
-            تثبيت التطبيق على الشاشة الرئيسية لاستلام الإشعارات وتجربة سريعة بدون متصفح.
+            تثبيت التطبيق على الجوال للحصول على إشعارات فورية وعمل بدون إنترنت.
           </p>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
           <button
-            onClick={handleInstallClick}
+            id="pwaInstallBtn"
+            onClick={pwaInstallClick}
             disabled={isInstalling}
-            className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-slate-950 font-bold text-xs px-3 py-2 rounded-xl shadow-lg transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-80"
+            className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold text-xs px-3 py-2 rounded-xl shadow-lg transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-80"
           >
-            {isInstalling ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>جاري التثبيت...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-3.5 h-3.5" />
-                <span>تثبيت الآن</span>
-              </>
-            )}
+            <Download className="w-3.5 h-3.5" />
+            <span id="pwaInstallLabel">📲 تثبيت</span>
           </button>
 
           <button

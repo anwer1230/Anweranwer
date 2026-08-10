@@ -1759,6 +1759,49 @@ app.get('/api/admin/stats', (req: Request, res: Response) => {
   });
 });
 
+// PWA Routes
+app.get('/manifest.json', (req: Request, res: Response) => {
+  const manifestData = {
+    id: '/',
+    name: 'مركز سرعة انجاز للخدمات الطلابية والأكاديمية',
+    short_name: 'سرعة انجاز',
+    description: 'نظام متكامل: تليجرام تلقائي، تحليل أكاديمي، عروض PowerPoint، منسّق مستندات',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    display_override: ['standalone', 'minimal-ui'],
+    orientation: 'portrait',
+    theme_color: '#1e3c78',
+    background_color: '#1e3c78',
+    lang: 'ar',
+    dir: 'rtl',
+    categories: ['education', 'productivity', 'utilities'],
+    prefer_related_applications: false,
+    icons: [
+      { src: '/static/icons/icon-72.png', sizes: '72x72', type: 'image/png', purpose: 'any maskable' },
+      { src: '/static/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+      { src: '/static/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+      { src: '/static/icons/app-logo.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+    ],
+    shortcuts: [
+      { name: 'التحليل الأكاديمي', short_name: 'أكاديمي', description: 'فتح منصة التحليل', url: '/academic' },
+      { name: 'لوحة التحكم', short_name: 'تحكم', description: 'لوحة التحكم الرئيسية', url: '/' }
+    ]
+  };
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.json(manifestData);
+});
+
+app.get('/sw.js', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.sendFile(path.join(process.cwd(), 'public', 'sw.js'));
+});
+
+app.get('/static/icons/:icon', (req: Request, res: Response) => {
+  res.redirect('https://telegram.org/img/t_logo.png');
+});
+
 // Update Routes
 app.get('/api/check_update', (req: Request, res: Response) => {
   res.json({
