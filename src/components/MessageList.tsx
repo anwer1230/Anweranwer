@@ -372,6 +372,38 @@ export const MessageList: React.FC<MessageListProps> = ({
                   </div>
                 )}
 
+                {/* Content type: CIRCULAR VIDEO NOTE (مقطع فيديو دائرِي) */}
+                {msg.content.type === 'video_note' && (
+                  <div className="relative my-1 flex flex-col items-center">
+                    <div className="relative w-44 h-44 rounded-full overflow-hidden border-4 border-sky-400 shadow-2xl bg-slate-950 flex items-center justify-center group/vid">
+                      <video
+                        src={
+                          msg.content.filePath ||
+                          'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+                        }
+                        autoPlay={playingVoiceId === msg.id}
+                        loop
+                        muted={playingVoiceId !== msg.id}
+                        playsInline
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                      <button
+                        onClick={() => toggleVoice(msg.id)}
+                        className="absolute p-3 bg-black/60 hover:bg-sky-500 hover:text-slate-950 text-white rounded-full transition-transform hover:scale-110 shadow-xl border border-white/20"
+                      >
+                        {playingVoiceId === msg.id ? (
+                          <Pause className="w-6 h-6 fill-current" />
+                        ) : (
+                          <Play className="w-6 h-6 fill-current" />
+                        )}
+                      </button>
+                    </div>
+                    <div className="mt-1 font-mono text-[10px] text-sky-300 font-bold bg-slate-950/80 px-2 py-0.5 rounded-full border border-sky-500/30">
+                      📹 فيديو دائرِي (0:{msg.content.duration || '08'})
+                    </div>
+                  </div>
+                )}
+
                 {/* Content type: POLL */}
                 {msg.content.type === 'poll' && msg.content.poll && (
                   <div className="space-y-2 min-w-[240px]">

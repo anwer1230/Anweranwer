@@ -38,6 +38,7 @@ interface MessageInputProps {
   onSendPhoto: (filePath: string, caption: string) => void;
   onSendDocument: (filePath: string, caption: string) => void;
   onSendVoice: (duration: number) => void;
+  onSendVideoNote?: (duration: number) => void;
   onOpenPollModal: () => void;
   onOpenKeyboardModal: () => void;
   onTyping: () => void;
@@ -51,6 +52,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onSendPhoto,
   onSendDocument,
   onSendVoice,
+  onSendVideoNote,
   onOpenPollModal,
   onOpenKeyboardModal,
   onTyping,
@@ -61,9 +63,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [scheduleTime, setScheduleTime] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // Recording states (Voice OR Circular Video Note)
+  const [recordMode, setRecordMode] = useState<'audio' | 'video'>('audio');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const videoStreamRef = useRef<MediaStream | null>(null);
 
   const emojisList = ['😀', '😂', '😍', '🔥', '👍', '❤️', '🎉', '👏', '⚡', '🙌', '🚀', '💯'];
 
@@ -103,23 +110,51 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
-  const startVoiceRecording = () => {
+  const startRecording = () => {
     setIsRecording(true);
     setRecordingTime(0);
     timerRef.current = setInterval(() => {
       setRecordingTime((prev) => prev + 1);
     }, 1000);
+
+    if (recordMode === 'video') {
+      navigator.mediaDevices
+        ?.getUserMedia({ video: true, audio: true })
+        .then((stream) => {
+          videoStreamRef.current = stream;
+          if (videoPreviewRef.current) {
+            videoPreviewRef.current.srcObject = stream;
+          }
+        })
+        .catch(() => {
+          console.log('Camera access fallback');
+        });
+    }
   };
 
-  const stopAndSendVoice = () => {
+  const stopAndSendRecording = () => {
     if (timerRef.current) clearInterval(timerRef.current);
+    if (videoStreamRef.current) {
+      videoStreamRef.current.getTracks().forEach((t) => t.stop());
+      videoStreamRef.current = null;
+    }
     setIsRecording(false);
-    onSendVoice(recordingTime || 5);
+
+    if (recordMode === 'video') {
+      if (onSendVideoNote) onSendVideoNote(recordingTime || 8);
+      else onSendVoice(recordingTime || 8);
+    } else {
+      onSendVoice(recordingTime || 5);
+    }
     setRecordingTime(0);
   };
 
-  const cancelVoice = () => {
+  const cancelRecording = () => {
     if (timerRef.current) clearInterval(timerRef.current);
+    if (videoStreamRef.current) {
+      videoStreamRef.current.getTracks().forEach((t) => t.stop());
+      videoStreamRef.current = null;
+    }
     setIsRecording(false);
     setRecordingTime(0);
   };
@@ -296,29 +331,48 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       )}
 
-      {/* Voice Recorder active state */}
+      {/* Recording active state (Voice or Circular Video Note) */}
       {isRecording ? (
-        <div className="flex items-center justify-between bg-slate-800/90 rounded-2xl p-2.5 px-4 border border-rose-500/40">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-rose-500 rounded-full animate-ping" />
-            <span className="text-xs font-mono font-bold text-rose-400">
-              جاري التسجيل الصوتي: 0:{recordingTime < 10 ? `0${recordingTime}` : recordingTime}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={cancelVoice}
-              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-700/60 rounded-xl transition-colors text-xs font-semibold"
-            >
-              إلغاء
-            </button>
-            <button
-              onClick={stopAndSendVoice}
-              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-1.5 rounded-xl text-xs flex items-center gap-1 transition-colors"
-            >
-              <span>إرسال الصوتي</span>
-              <Send className="w-3.5 h-3.5" />
-            </button>
+        <div className="flex flex-col items-center gap-3 bg-slate-800/95 rounded-3xl p-3 px-4 border border-rose-500/40 relative overflow-hidden shadow-2xl">
+          {/* Circular Video Viewfinder Preview if Video Note */}
+          {recordMode === 'video' && (
+            <div className="relative w-36 h-36 rounded-full overflow-hidden border-4 border-sky-400 shadow-2xl shadow-sky-500/30 my-1 bg-slate-950 flex items-center justify-center">
+              <video
+                ref={videoPreviewRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover scale-105"
+              />
+              <div className="absolute inset-0 border-2 border-dashed border-sky-300 rounded-full animate-spin pointer-events-none" />
+            </div>
+          )}
+
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-rose-500 rounded-full animate-ping" />
+              <span className="text-xs font-mono font-bold text-rose-400">
+                {recordMode === 'video' ? '📹 تسجيل مقطع دائرِي:' : '🎙️ تسجيل صوتِي:'} 0:
+                {recordingTime < 10 ? `0${recordingTime}` : recordingTime}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={cancelRecording}
+                className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-700/60 rounded-xl transition-colors text-xs font-semibold"
+              >
+                إلغاء
+              </button>
+
+              <button
+                onClick={stopAndSendRecording}
+                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-1.5 rounded-xl text-xs flex items-center gap-1 transition-colors shadow-lg"
+              >
+                <span>إرسال</span>
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -373,13 +427,33 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               </button>
             </div>
           ) : (
-            <button
-              onClick={startVoiceRecording}
-              className="p-2.5 text-slate-400 hover:text-sky-400 hover:bg-slate-800 rounded-xl transition-colors"
-              title="تسجيل رسالة صوتية"
-            >
-              <Mic className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              {/* Record Button (Mic or Camera depending on mode) */}
+              <button
+                onClick={startRecording}
+                className="p-2.5 bg-sky-500/20 hover:bg-sky-500 text-sky-300 hover:text-slate-950 rounded-xl transition-all shadow-sm"
+                title={recordMode === 'video' ? 'بدء تسجيل فيديو دائرِي' : 'بدء تسجيل صوتِي'}
+              >
+                {recordMode === 'video' ? (
+                  <Sparkles className="w-5 h-5 text-amber-300" />
+                ) : (
+                  <Mic className="w-5 h-5" />
+                )}
+              </button>
+
+              {/* Toggle Record Mode Button (Mic 🎙️ / Video Note 📹) */}
+              <button
+                onClick={() => setRecordMode((prev) => (prev === 'audio' ? 'video' : 'audio'))}
+                className={`p-2 rounded-xl text-xs font-mono font-bold transition-colors ${
+                  recordMode === 'video'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    : 'bg-slate-800 text-slate-400 hover:text-white'
+                }`}
+                title="تبديل النمط بين تسجيل صوتي وتسجيل فيديو دائرِي"
+              >
+                {recordMode === 'video' ? '📹 دائرِي' : '🎙️ صوت'}
+              </button>
+            </div>
           )}
         </div>
       )}

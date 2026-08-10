@@ -17,6 +17,9 @@ import {
   X,
   LogOut,
   Clock,
+  Phone,
+  Video,
+  Palette,
 } from 'lucide-react';
 import { Chat, Message } from '../types';
 import { ChatAvatar } from './ChatAvatar';
@@ -34,6 +37,9 @@ interface ChatHeaderProps {
   onShowMembers: (chatId: number) => void;
   onShowInviteLink: (chatId: number) => void;
   onUnpinMessage?: (chatId: number, messageId: string) => void;
+  onOpenVoiceCall?: () => void;
+  onOpenVideoCall?: () => void;
+  onOpenThemeModal?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -49,6 +55,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onShowMembers,
   onShowInviteLink,
   onUnpinMessage,
+  onOpenVoiceCall,
+  onOpenVideoCall,
+  onOpenThemeModal,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showMuteSubmenu, setShowMuteSubmenu] = useState(false);
@@ -139,18 +148,50 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </div>
         </div>
 
-        {/* Action Menu Trigger */}
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => {
-              setShowMenu(!showMenu);
-              setShowMuteSubmenu(false);
-            }}
-            className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors"
-            title="خيارات المحادثة"
-          >
-            <MoreVertical className="w-5 h-5" />
-          </button>
+        {/* Quick Header Actions: Voice Call, Video Call, Theme, & Options Menu */}
+        <div className="flex items-center gap-1">
+          {onOpenVoiceCall && (
+            <button
+              onClick={onOpenVoiceCall}
+              className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-xl transition-colors"
+              title="إجراء مكالمة صوتية"
+            >
+              <Phone className="w-4 h-4" />
+            </button>
+          )}
+
+          {onOpenVideoCall && (
+            <button
+              onClick={onOpenVideoCall}
+              className="p-2 text-slate-400 hover:text-sky-400 hover:bg-slate-800 rounded-xl transition-colors"
+              title="إجراء مكالمة فيديو مرئية"
+            >
+              <Video className="w-4 h-4" />
+            </button>
+          )}
+
+          {onOpenThemeModal && (
+            <button
+              onClick={onOpenThemeModal}
+              className="p-2 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-xl transition-colors"
+              title="تغيير خلفية وثيمة المحادثة"
+            >
+              <Palette className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Action Menu Trigger */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => {
+                setShowMenu(!showMenu);
+                setShowMuteSubmenu(false);
+              }}
+              className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-xl transition-colors"
+              title="خيارات المحادثة"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
 
           {/* Dropdown Menu */}
           {showMenu && (
@@ -329,6 +370,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           )}
         </div>
       </div>
+    </div>
 
       {/* Pinned Messages Banner Bar (Telegram Official Web Style) */}
       {pinnedMessages.length > 0 && activePinnedMsg && (

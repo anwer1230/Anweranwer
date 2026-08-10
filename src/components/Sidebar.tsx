@@ -15,7 +15,7 @@ import {
   Sparkles,
   Menu,
 } from 'lucide-react';
-import { Chat, ChatFolder, UserProfile, Message } from '../types';
+import { Chat, ChatFolder, UserProfile, Message, TelegramStory } from '../types';
 import { TelegramDrawer } from './TelegramDrawer';
 import { AutomationTab } from './AutomationAIModal';
 import { PinnedMessagesSidebar } from './PinnedMessagesSidebar';
@@ -28,6 +28,9 @@ interface SidebarProps {
   activeFolderId: string;
   selectedChatId: number | null;
   profile: UserProfile;
+  stories?: TelegramStory[];
+  onOpenStoryViewer?: (index: number) => void;
+  onAddStory?: () => void;
   allPinnedMessages?: Array<{ chat_id: number; chat_title: string; chat_avatar?: string; message: Message }>;
   onUnpinMessage?: (chatId: number, messageId: string) => void;
   onSelectChat: (chatId: number) => void;
@@ -62,6 +65,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeFolderId,
   selectedChatId,
   profile,
+  stories,
+  onOpenStoryViewer,
+  onAddStory,
   allPinnedMessages = [],
   onUnpinMessage,
   onSelectChat,
@@ -213,6 +219,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <FolderPlus className="w-3.5 h-3.5" />
         </button>
       </div>
+
+      {/* Telegram Official Stories Horizontal Carousel Bar */}
+      {stories && stories.length > 0 && (
+        <div className="bg-slate-950/90 border-b border-slate-800/80 p-2 overflow-x-auto no-scrollbar flex items-center gap-3">
+          {/* My Story + Add button */}
+          <div
+            onClick={onAddStory}
+            className="flex flex-col items-center gap-1 cursor-pointer shrink-0 group"
+          >
+            <div className="relative p-0.5 rounded-full ring-2 ring-sky-500/50 group-hover:scale-105 transition-transform">
+              <ChatAvatar title={profile.first_name} avatar={profile.photo} size="sm" />
+              <div className="absolute -bottom-1 -right-1 bg-sky-500 text-slate-950 p-0.5 rounded-full border border-slate-900 shadow">
+                <Plus className="w-3 h-3 stroke-[3]" />
+              </div>
+            </div>
+            <span className="text-[10px] text-slate-300 font-bold truncate max-w-[54px]">قصتي</span>
+          </div>
+
+          {/* User Stories */}
+          {stories.map((story, sIdx) => (
+            <div
+              key={story.id}
+              onClick={() => onOpenStoryViewer?.(sIdx)}
+              className="flex flex-col items-center gap-1 cursor-pointer shrink-0 group"
+            >
+              <div
+                className={`p-0.5 rounded-full ring-2 transition-transform group-hover:scale-105 ${
+                  story.is_viewed
+                    ? 'ring-slate-700'
+                    : 'ring-gradient-to-tr from-amber-400 via-rose-500 to-sky-400 ring-sky-400'
+                }`}
+              >
+                <ChatAvatar title={story.user_name} avatar={story.user_avatar} size="sm" />
+              </div>
+              <span className="text-[10px] text-slate-200 font-medium truncate max-w-[58px]">
+                {story.user_name.split(' ')[0]}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Archived Chats Banner */}
       {archivedChats.length > 0 && (

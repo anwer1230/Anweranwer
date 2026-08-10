@@ -24,7 +24,7 @@ export interface PollData {
 }
 
 export interface MessageContent {
-  type: 'text' | 'photo' | 'document' | 'voice' | 'sticker' | 'animation' | 'poll' | 'location';
+  type: 'text' | 'photo' | 'document' | 'voice' | 'video_note' | 'sticker' | 'animation' | 'poll' | 'location';
   text?: string;
   filePath?: string;
   fileName?: string;
@@ -138,6 +138,20 @@ export interface SystemUpdateStatus {
   current: string;
   latest: string;
   message?: string;
+}
+
+export interface TelegramStory {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_avatar?: string;
+  media_url: string;
+  media_type: 'photo' | 'video';
+  caption?: string;
+  date: string;
+  is_viewed?: boolean;
+  views_count?: number;
+  reactions_count?: number;
 }
 
 export interface AuthState {

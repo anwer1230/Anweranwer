@@ -18,6 +18,8 @@ import { PrivacySettingsModal } from './components/PrivacySettingsModal';
 import { SyncBackupModal } from './components/SyncBackupModal';
 import { MTProtoSyncModal } from './components/MTProtoSyncModal';
 import { ArchiveSyncModal } from './components/ArchiveSyncModal';
+import { StoryViewerModal } from './components/StoryViewerModal';
+import { ChatThemeModal } from './components/ChatThemeModal';
 import { SystemMonitorModal } from './components/SystemMonitorModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AutomationAIModal, AutomationTab } from './components/AutomationAIModal';
@@ -33,6 +35,7 @@ import {
   SystemUpdateStatus,
   ChatMember,
   InlineKeyboardButton,
+  TelegramStory,
 } from './types';
 import { initialChats, initialFolders, initialUserProfile } from './data/mockInitialData';
 import {
@@ -60,6 +63,57 @@ export default function App() {
   >([]);
   const [replyingMessage, setReplyingMessage] = useState<Message | null>(null);
   const [selectedLinkUrl, setSelectedLinkUrl] = useState<string | null>(null);
+
+  // Telegram Official Parity States: Stories, Themes, Calls
+  const [stories, setStories] = useState<TelegramStory[]>([
+    {
+      id: 'story_1',
+      user_id: 'user_1',
+      user_name: 'أبو ملك (المشرف الأكاديمي)',
+      user_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      media_url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80',
+      media_type: 'photo',
+      caption: '📚 تم تحديث الجدول الدراسي الرسمي والملازم اليوم، تفضلوا بالإطلاع!',
+      date: 'منذ ساعتين',
+      views_count: 128,
+      reactions_count: 34,
+      is_viewed: false,
+    },
+    {
+      id: 'story_2',
+      user_id: 'user_2',
+      user_name: 'قناة الملازم الأكاديمية',
+      user_avatar: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=150&q=80',
+      media_url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+      media_type: 'photo',
+      caption: '🚀 إرشادات مهمة لاجتياز اختبارات نهاية الفصل بنجاح وامتياز!',
+      date: 'منذ 5 ساعات',
+      views_count: 340,
+      reactions_count: 92,
+      is_viewed: false,
+    },
+    {
+      id: 'story_3',
+      user_id: 'user_3',
+      user_name: 'د. خالد عبد العزيز',
+      user_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+      media_url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=800&q=80',
+      media_type: 'photo',
+      caption: '✨ مسابقة أفضل تلخيص أسبوعي - الجوائز بانتظاركم!',
+      date: 'اليوم',
+      views_count: 215,
+      reactions_count: 58,
+      is_viewed: true,
+    },
+  ]);
+
+  const [isStoryViewerOpen, setIsStoryViewerOpen] = useState(false);
+  const [activeStoryIdx, setActiveStoryIdx] = useState(0);
+
+  const [isChatThemeOpen, setIsChatThemeOpen] = useState(false);
+  const [chatWallpapers, setChatWallpapers] = useState<Record<number, string>>({});
+
+  const [callType, setCallType] = useState<'voice' | 'video'>('voice');
 
   // Modal Open States
   const [showLoginScreen, setShowLoginScreen] = useState(true);
@@ -673,6 +727,38 @@ export default function App() {
     });
   };
 
+  const handleSendVideoNote = async (duration: number) => {
+    if (!selectedChatId) return;
+
+    const optimisticMsg: Message = {
+      id: `msg_video_note_${Date.now()}`,
+      chat_id: selectedChatId,
+      sender_id: profile.phone || 'me',
+      sender_name: profile.first_name,
+      sender_avatar: profile.photo,
+      is_outgoing: true,
+      date: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+      content: {
+        type: 'video_note',
+        duration,
+        filePath: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+      },
+      status: 'sent',
+    };
+
+    setMessages((prev) => [...prev, optimisticMsg]);
+
+    try {
+      await fetch('/api/media/voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: selectedChatId, duration, type: 'video_note' }),
+      });
+    } catch (e) {
+      console.warn('Video note send fallback:', e);
+    }
+  };
+
   const handleCreatePoll = async (question: string, options: string[]) => {
     if (!selectedChatId) return;
     await fetch('/api/media/poll', {
@@ -969,6 +1055,15 @@ export default function App() {
           activeFolderId={activeFolderId}
           selectedChatId={selectedChatId}
           profile={profile}
+          stories={stories}
+          onOpenStoryViewer={(idx) => {
+            setActiveStoryIdx(idx);
+            openModal('storyViewer', setIsStoryViewerOpen);
+          }}
+          onAddStory={() => {
+            setActiveStoryIdx(0);
+            openModal('storyViewer', setIsStoryViewerOpen);
+          }}
           allPinnedMessages={allPinnedMessages}
           onUnpinMessage={(cid, mid) => handlePinMessage(cid, mid, false)}
           onSelectChat={handleSelectChat}
@@ -990,7 +1085,10 @@ export default function App() {
           onOpenAcademic={() => openModal('academic', setIsAcademicOpen)}
           onOpenLinkFinder={() => openModal('linkFinder', setIsLinkFinderOpen)}
           onOpenMediaGallery={() => openModal('mediaGallery', setIsMediaGalleryOpen)}
-          onOpenVoiceCall={() => openModal('voiceCall', setIsVoiceCallOpen)}
+          onOpenVoiceCall={() => {
+            setCallType('voice');
+            openModal('voiceCall', setIsVoiceCallOpen);
+          }}
           onOpenPrivacy={() => openModal('privacy', setIsPrivacyOpen)}
           onOpenSync={() => openModal('sync', setIsSyncOpen)}
           onOpenMTProtoSync={() => openModal('mtprotoSync', setIsMTProtoSyncOpen)}
@@ -1029,6 +1127,15 @@ export default function App() {
               onLeaveGroup={handleLeaveGroup}
               onShowMembers={handleShowMembers}
               onShowInviteLink={handleShowInviteLink}
+              onOpenVoiceCall={() => {
+                setCallType('voice');
+                openModal('voiceCall', setIsVoiceCallOpen);
+              }}
+              onOpenVideoCall={() => {
+                setCallType('video');
+                openModal('voiceCall', setIsVoiceCallOpen);
+              }}
+              onOpenThemeModal={() => openModal('chatTheme', setIsChatThemeOpen)}
             />
 
             <MessageList
@@ -1047,7 +1154,7 @@ export default function App() {
               onAnswerCallback={handleAnswerCallback}
               onDownloadFile={handleDownloadFile}
               downloadProgress={downloadProgress}
-              chatWallpaper={selectedChat?.wallpaper}
+              chatWallpaper={chatWallpapers[selectedChat.id] || selectedChat?.wallpaper}
               onOpenLinkModal={(url) => setSelectedLinkUrl(url)}
             />
 
@@ -1059,6 +1166,7 @@ export default function App() {
               onSendPhoto={handleSendPhoto}
               onSendDocument={handleSendDocument}
               onSendVoice={handleSendVoice}
+              onSendVideoNote={handleSendVideoNote}
               onOpenPollModal={() => openModal('poll', setIsPollOpen)}
               onOpenKeyboardModal={() => openModal('keyboard', setIsKeyboardOpen)}
               onTyping={handleTyping}
@@ -1155,6 +1263,29 @@ export default function App() {
         <VoiceCallModal
           isOpen={isVoiceCallOpen}
           onClose={() => closeModal('voiceCall', setIsVoiceCallOpen)}
+          peerName={selectedChat ? selectedChat.title : profile.first_name}
+          peerAvatar={selectedChat?.avatar}
+          initialType={callType}
+        />
+
+        <StoryViewerModal
+          isOpen={isStoryViewerOpen}
+          onClose={() => closeModal('storyViewer', setIsStoryViewerOpen)}
+          stories={stories}
+          initialIndex={activeStoryIdx}
+          onAddStory={(newStory) => setStories((prev) => [newStory, ...prev])}
+        />
+
+        <ChatThemeModal
+          isOpen={isChatThemeOpen}
+          onClose={() => closeModal('chatTheme', setIsChatThemeOpen)}
+          chatTitle={selectedChat?.title}
+          currentWallpaper={selectedChatId ? chatWallpapers[selectedChatId] || '' : ''}
+          onSelectWallpaper={(url) => {
+            if (selectedChatId) {
+              setChatWallpapers((prev) => ({ ...prev, [selectedChatId]: url }));
+            }
+          }}
         />
 
         <PrivacySettingsModal
