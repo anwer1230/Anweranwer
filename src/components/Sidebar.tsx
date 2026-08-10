@@ -45,6 +45,7 @@ interface SidebarProps {
   onOpenPrivacy?: () => void;
   onOpenSync?: () => void;
   onOpenMTProtoSync?: () => void;
+  onOpenArchiveSync?: () => void;
   onOpenMonitor?: () => void;
   onOpenSettings?: () => void;
   onOpenAutomationAI?: (tab?: AutomationTab) => void;
@@ -78,6 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenPrivacy,
   onOpenSync,
   onOpenMTProtoSync,
+  onOpenArchiveSync,
   onOpenMonitor,
   onOpenSettings,
   onOpenAutomationAI,
@@ -332,6 +334,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onOpenPrivacy={onOpenPrivacy}
         onOpenSync={onOpenSync}
         onOpenMTProtoSync={onOpenMTProtoSync}
+        onOpenArchiveSync={onOpenArchiveSync}
         onOpenMonitor={onOpenMonitor}
         onOpenSettings={onOpenSettings}
         onNewFolder={onNewFolder}

@@ -59,6 +59,7 @@ interface TelegramDrawerProps {
   onOpenPrivacy?: () => void;
   onOpenSync?: () => void;
   onOpenMTProtoSync?: () => void;
+  onOpenArchiveSync?: () => void;
   onOpenMonitor?: () => void;
   onOpenSettings?: () => void;
   onNewFolder: () => void;
@@ -81,6 +82,7 @@ export const TelegramDrawer: React.FC<TelegramDrawerProps> = ({
   onOpenPrivacy,
   onOpenSync,
   onOpenMTProtoSync,
+  onOpenArchiveSync,
   onOpenMonitor,
   onOpenSettings,
   onNewFolder,
@@ -420,6 +422,20 @@ export const TelegramDrawer: React.FC<TelegramDrawerProps> = ({
               </div>
               <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-full font-bold border border-sky-500/30">
                 سحابي
+              </span>
+            </button>
+
+            <button
+              onClick={() => handleAction(onOpenArchiveSync)}
+              className="w-full p-2.5 rounded-xl bg-gradient-to-r from-emerald-500/10 to-teal-600/10 hover:from-emerald-500/20 hover:to-teal-600/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-between transition-colors group my-1 font-bold"
+              title="جدولة الأرشفة السحابية التلقائية وحالة الأرشيف"
+            >
+              <div className="flex items-center gap-2.5">
+                <Archive className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                <span>جدولة الأرشفة السحابية (Archive Sync)</span>
+              </div>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold border border-emerald-500/30">
+                أرشيف
               </span>
             </button>
 

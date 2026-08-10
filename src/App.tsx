@@ -17,6 +17,7 @@ import { VoiceCallModal } from './components/VoiceCallModal';
 import { PrivacySettingsModal } from './components/PrivacySettingsModal';
 import { SyncBackupModal } from './components/SyncBackupModal';
 import { MTProtoSyncModal } from './components/MTProtoSyncModal';
+import { ArchiveSyncModal } from './components/ArchiveSyncModal';
 import { SystemMonitorModal } from './components/SystemMonitorModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AutomationAIModal, AutomationTab } from './components/AutomationAIModal';
@@ -77,6 +78,7 @@ export default function App() {
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const [isSyncOpen, setIsSyncOpen] = useState(false);
   const [isMTProtoSyncOpen, setIsMTProtoSyncOpen] = useState(false);
+  const [isArchiveSyncOpen, setIsArchiveSyncOpen] = useState(false);
   const [isMonitorOpen, setIsMonitorOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAutomationAIOpen, setIsAutomationAIOpen] = useState(false);
@@ -992,6 +994,7 @@ export default function App() {
           onOpenPrivacy={() => openModal('privacy', setIsPrivacyOpen)}
           onOpenSync={() => openModal('sync', setIsSyncOpen)}
           onOpenMTProtoSync={() => openModal('mtprotoSync', setIsMTProtoSyncOpen)}
+          onOpenArchiveSync={() => openModal('archiveSync', setIsArchiveSyncOpen)}
           onOpenMonitor={() => openModal('monitor', setIsMonitorOpen)}
           onOpenSettings={() => openModal('settings', setIsSettingsOpen)}
           onOpenAutomationAI={(tab) => {
@@ -1169,6 +1172,12 @@ export default function App() {
           onClose={() => closeModal('mtprotoSync', setIsMTProtoSyncOpen)}
           activeChatTitle={selectedChat?.title}
           activeChatId={selectedChatId}
+        />
+
+        <ArchiveSyncModal
+          isOpen={isArchiveSyncOpen}
+          onClose={() => closeModal('archiveSync', setIsArchiveSyncOpen)}
+          archivedCount={archivedChats.length}
         />
 
         <SystemMonitorModal
