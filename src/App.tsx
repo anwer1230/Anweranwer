@@ -54,7 +54,17 @@ export default function App() {
   const [activeFolderId, setActiveFolderId] = useState<string>('all');
   const [selectedChatId, setSelectedChatId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [profile, setProfile] = useState<UserProfile>(initialUserProfile);
+  const [profile, setProfile] = useState<UserProfile>(() => {
+    const saved = localStorage.getItem('tg_user_profile');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.warn('Failed to parse saved user profile:', e);
+      }
+    }
+    return initialUserProfile;
+  });
   const [updateStatus, setUpdateStatus] = useState<SystemUpdateStatus | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
   const [members, setMembers] = useState<ChatMember[]>([]);
@@ -116,7 +126,9 @@ export default function App() {
   const [callType, setCallType] = useState<'voice' | 'video'>('voice');
 
   // Modal Open States
-  const [showLoginScreen, setShowLoginScreen] = useState(true);
+  const [showLoginScreen, setShowLoginScreen] = useState(() => {
+    return localStorage.getItem('tg_session_active') !== 'true';
+  });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPollOpen, setIsPollOpen] = useState(false);
@@ -1023,16 +1035,32 @@ export default function App() {
 
   const selectedChat = chats.find((c) => c.id === selectedChatId) || archivedChats.find((c) => c.id === selectedChatId);
 
+  const handleLogout = () => {
+    localStorage.removeItem('tg_session_active');
+    localStorage.removeItem('tg_session_file');
+    localStorage.removeItem('tg_auth_key');
+    localStorage.removeItem('tg_user_profile');
+    setShowLoginScreen(true);
+  };
+
   if (showLoginScreen) {
     return (
       <TelegramLoginScreen
         onLoginSuccess={(userData) => {
-          setProfile((prev) => ({
-            ...prev,
+          const updatedProfile: UserProfile = {
+            ...profile,
             first_name: userData.name,
             phone: userData.phone,
             username: userData.username.replace('@', ''),
-          }));
+          };
+          setProfile(updatedProfile);
+
+          // Save Telegram Official Session File & Auth Key to localStorage
+          localStorage.setItem('tg_session_active', 'true');
+          localStorage.setItem('tg_session_file', `session_${Date.now()}_${userData.phone.replace(/\+/g, '')}`);
+          localStorage.setItem('tg_auth_key', `auth_key_${Math.random().toString(36).substring(2)}${Date.now()}`);
+          localStorage.setItem('tg_user_profile', JSON.stringify(updatedProfile));
+
           setShowLoginScreen(false);
           fetchChats();
         }}
@@ -1078,7 +1106,7 @@ export default function App() {
             pushView('archive', () => setActiveFolderId('all'));
           }}
           onOpenProfile={() => openModal('profile', setIsProfileOpen)}
-          onOpenLogin={() => openModal('login', setShowLoginScreen)}
+          onOpenLogin={handleLogout}
           onCheckUpdate={handleCheckUpdate}
           onNewChat={handleNewChat}
           onNewFolder={() => openModal('folder', setIsFolderOpen)}
