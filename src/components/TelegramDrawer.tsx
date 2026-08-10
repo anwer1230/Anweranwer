@@ -57,6 +57,7 @@ interface TelegramDrawerProps {
   onOpenMediaGallery?: () => void;
   onOpenVoiceCall?: () => void;
   onOpenPrivacy?: () => void;
+  onOpenActiveSessions?: () => void;
   onOpenSync?: () => void;
   onOpenMTProtoSync?: () => void;
   onOpenArchiveSync?: () => void;
@@ -80,6 +81,7 @@ export const TelegramDrawer: React.FC<TelegramDrawerProps> = ({
   onOpenMediaGallery,
   onOpenVoiceCall,
   onOpenPrivacy,
+  onOpenActiveSessions,
   onOpenSync,
   onOpenMTProtoSync,
   onOpenArchiveSync,
@@ -459,6 +461,20 @@ export const TelegramDrawer: React.FC<TelegramDrawerProps> = ({
                 <Shield className="w-4 h-4 text-rose-400 group-hover:scale-110 transition-transform" />
                 <span>الخصوصية والأمان (/privacy)</span>
               </div>
+            </button>
+
+            <button
+              onClick={() => handleAction(onOpenActiveSessions)}
+              className="w-full p-2 rounded-xl hover:bg-slate-800/80 text-slate-200 hover:text-sky-300 flex items-center justify-between transition-colors group"
+              title="الأجهزة والجلسات النشطة والتفويض (/devices)"
+            >
+              <div className="flex items-center gap-2.5">
+                <Shield className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
+                <span>الأجهزة والجلسات النشطة (/devices)</span>
+              </div>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold border border-emerald-500/30">
+                نشط
+              </span>
             </button>
           </div>
 

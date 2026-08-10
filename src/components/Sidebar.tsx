@@ -46,6 +46,7 @@ interface SidebarProps {
   onOpenMediaGallery?: () => void;
   onOpenVoiceCall?: () => void;
   onOpenPrivacy?: () => void;
+  onOpenActiveSessions?: () => void;
   onOpenSync?: () => void;
   onOpenMTProtoSync?: () => void;
   onOpenArchiveSync?: () => void;
@@ -83,6 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenMediaGallery,
   onOpenVoiceCall,
   onOpenPrivacy,
+  onOpenActiveSessions,
   onOpenSync,
   onOpenMTProtoSync,
   onOpenArchiveSync,
@@ -379,6 +381,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onOpenMediaGallery={onOpenMediaGallery}
         onOpenVoiceCall={onOpenVoiceCall}
         onOpenPrivacy={onOpenPrivacy}
+        onOpenActiveSessions={onOpenActiveSessions}
         onOpenSync={onOpenSync}
         onOpenMTProtoSync={onOpenMTProtoSync}
         onOpenArchiveSync={onOpenArchiveSync}

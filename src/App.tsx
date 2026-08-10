@@ -15,6 +15,7 @@ import { LinkFinderModal } from './components/LinkFinderModal';
 import { MediaGalleryModal } from './components/MediaGalleryModal';
 import { VoiceCallModal } from './components/VoiceCallModal';
 import { PrivacySettingsModal } from './components/PrivacySettingsModal';
+import { ActiveSessionsModal } from './components/ActiveSessionsModal';
 import { SyncBackupModal } from './components/SyncBackupModal';
 import { MTProtoSyncModal } from './components/MTProtoSyncModal';
 import { ArchiveSyncModal } from './components/ArchiveSyncModal';
@@ -142,6 +143,7 @@ export default function App() {
   const [isMediaGalleryOpen, setIsMediaGalleryOpen] = useState(false);
   const [isVoiceCallOpen, setIsVoiceCallOpen] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
+  const [isActiveSessionsOpen, setIsActiveSessionsOpen] = useState(false);
   const [isSyncOpen, setIsSyncOpen] = useState(false);
   const [isMTProtoSyncOpen, setIsMTProtoSyncOpen] = useState(false);
   const [isArchiveSyncOpen, setIsArchiveSyncOpen] = useState(false);
@@ -1118,6 +1120,7 @@ export default function App() {
             openModal('voiceCall', setIsVoiceCallOpen);
           }}
           onOpenPrivacy={() => openModal('privacy', setIsPrivacyOpen)}
+          onOpenActiveSessions={() => openModal('activeSessions', setIsActiveSessionsOpen)}
           onOpenSync={() => openModal('sync', setIsSyncOpen)}
           onOpenMTProtoSync={() => openModal('mtprotoSync', setIsMTProtoSyncOpen)}
           onOpenArchiveSync={() => openModal('archiveSync', setIsArchiveSyncOpen)}
@@ -1319,6 +1322,13 @@ export default function App() {
         <PrivacySettingsModal
           isOpen={isPrivacyOpen}
           onClose={() => closeModal('privacy', setIsPrivacyOpen)}
+          onOpenActiveSessions={() => openModal('activeSessions', setIsActiveSessionsOpen)}
+        />
+
+        <ActiveSessionsModal
+          isOpen={isActiveSessionsOpen}
+          onClose={() => closeModal('activeSessions', setIsActiveSessionsOpen)}
+          onTerminateCurrentSession={handleLogout}
         />
 
         <SyncBackupModal

@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
-import { Shield, ShieldAlert, UserX, Lock, KeyRound, Check, X } from 'lucide-react';
+import { Shield, ShieldAlert, UserX, Lock, KeyRound, Check, X, Smartphone, Key } from 'lucide-react';
 
 interface PrivacySettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenActiveSessions?: () => void;
 }
 
-export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({ isOpen, onClose }) => {
+export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
+  isOpen,
+  onClose,
+  onOpenActiveSessions,
+}) => {
   const [phoneNumberVisibility, setPhoneNumberVisibility] = useState('nobody');
   const [lastSeenVisibility, setLastSeenVisibility] = useState('everybody');
   const [forwardedMessages, setForwardedMessages] = useState('contacts');
@@ -82,6 +87,31 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({ isOp
           >
             حفظ التعديلات الخصوصية
           </button>
+
+          <hr className="border-slate-800 my-3" />
+
+          {/* Active Sessions Button */}
+          {onOpenActiveSessions && (
+            <div className="p-3 bg-gradient-to-r from-sky-950 to-slate-900 border border-sky-500/30 rounded-2xl space-y-2">
+              <div className="flex items-center gap-2 text-sky-300 font-bold">
+                <Smartphone className="w-4 h-4 text-sky-400" />
+                <span>الجلسات النشطة والأجهزة الحالية (Devices)</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                عرض جميع الأجهزة المسجل دخولها بحسابك ومفاتيح التفويض، مع إمكانية إنهاء أي جلسة عن بُعد.
+              </p>
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenActiveSessions();
+                }}
+                className="w-full py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow flex items-center justify-center gap-1.5"
+              >
+                <Key className="w-3.5 h-3.5" />
+                <span>عرض الجلسات النشطة ومفاتيح التشفير</span>
+              </button>
+            </div>
+          )}
 
           <hr className="border-slate-800 my-3" />
 
