@@ -196,6 +196,138 @@ class TelegramSyncEngine {
   }
 
   /**
+   * Mark chat history as read (Telegram DrKLO MessagesController.markDialogAsRead)
+   */
+  public async markChatAsRead(chatId: string | number, maxId?: string | number): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/chats/${chatId}/read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_id: maxId, date: Math.floor(Date.now() / 1000) }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn('[SyncEngine] Error marking chat as read:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Sync cloud draft across devices (Telegram DrKLO DraftController)
+   */
+  public async saveCloudDraft(chatId: string | number, text: string, replyToMsgId?: string | number): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/chats/${chatId}/draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, reply_to_msg_id: replyToMsgId, date: Math.floor(Date.now() / 1000) }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn('[SyncEngine] Error syncing cloud draft:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Send typing status / action indicator (Telegram DrKLO MessagesController.sendTyping)
+   */
+  public async sendChatTyping(chatId: string | number, action: string = 'typing'): Promise<boolean> {
+    try {
+      const res = await fetch('/api/messages/typing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, action }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn('[SyncEngine] Error sending typing status:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Toggle emoji reaction on a message (Telegram DrKLO ReactionsController)
+   */
+  public async toggleMessageReaction(chatId: string | number, messageId: string | number, emoji: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/messages/reaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, message_id: messageId, reaction: emoji }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn('[SyncEngine] Error toggling reaction:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Pin or unpin a message in chat (Telegram DrKLO MessagesController.pinChatMessage)
+   */
+  public async pinChatMessage(
+    chatId: string | number,
+    messageId: string | number,
+    text?: string,
+    senderName?: string
+  ): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/chats/${chatId}/pin-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: messageId, text, sender_name: senderName }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn('[SyncEngine] Error pinning message:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Edit existing message (Telegram DrKLO MessagesController.editMessage)
+   */
+  public async editCloudMessage(
+    chatId: string | number,
+    messageId: string | number,
+    newText: string
+  ): Promise<boolean> {
+    try {
+      const res = await fetch('/api/messages/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: newText }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn('[SyncEngine] Error editing cloud message:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Delete messages for self or everyone (Telegram DrKLO MessagesController.deleteMessages)
+   */
+  public async deleteCloudMessages(
+    chatId: string | number,
+    messageIds: (string | number)[],
+    forEveryone: boolean = true
+  ): Promise<boolean> {
+    try {
+      const res = await fetch('/api/messages/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, message_ids: messageIds, for_everyone: forEveryone }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn('[SyncEngine] Error deleting messages:', e);
+      return false;
+    }
+  }
+
+  /**
    * Returns current sync state
    */
   public getState(): SyncState {
