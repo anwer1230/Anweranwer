@@ -4,7 +4,7 @@ import { Message } from '../types';
 import { ChatAvatar } from './ChatAvatar';
 
 export interface PinnedMessageItem {
-  chat_id: number;
+  chat_id: string | number;
   chat_title: string;
   chat_avatar?: string;
   message: Message;
@@ -12,8 +12,8 @@ export interface PinnedMessageItem {
 
 interface PinnedMessagesSidebarProps {
   pinnedMessages: PinnedMessageItem[];
-  onSelectChat: (chatId: number) => void;
-  onUnpinMessage?: (chatId: number, messageId: string) => void;
+  onSelectChat: (chatId: string | number) => void;
+  onUnpinMessage?: (chatId: string | number, messageId: string | number) => void;
 }
 
 export const PinnedMessagesSidebar: React.FC<PinnedMessagesSidebarProps> = ({
@@ -30,7 +30,7 @@ export const PinnedMessagesSidebar: React.FC<PinnedMessagesSidebarProps> = ({
 
   const filteredPinned = pinnedMessages.filter((pm) => {
     if (!filterQuery) return true;
-    const text = pm.message.content.text || pm.message.content.caption || '';
+    const text = pm.message.content?.text || pm.message.content?.caption || pm.message.text || '';
     const sender = pm.message.sender_name || '';
     const title = pm.chat_title || '';
     const q = filterQuery.toLowerCase();
@@ -88,9 +88,9 @@ export const PinnedMessagesSidebar: React.FC<PinnedMessagesSidebarProps> = ({
             ) : (
               filteredPinned.map((pm) => {
                 const text =
-                  pm.message.content.type === 'text'
+                  pm.message.content?.type === 'text'
                     ? pm.message.content.text
-                    : pm.message.content.caption || `[${pm.message.content.type.toUpperCase()}]`;
+                    : pm.message.content?.caption || pm.message.text || `[${(pm.message.content?.type || 'MESSAGE').toUpperCase()}]`;
 
                 return (
                   <div

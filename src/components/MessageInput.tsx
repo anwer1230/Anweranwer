@@ -19,8 +19,10 @@ import {
   PartyPopper,
   ChevronUp,
   Reply,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Message } from '../types';
+import { RichFormattingToolbar } from './RichFormattingToolbar';
 
 interface MessageInputProps {
   replyingMessage?: Message | null;
@@ -32,7 +34,7 @@ interface MessageInputProps {
       isSilent?: boolean;
       scheduledAt?: string;
       effect?: 'party' | 'heart' | 'fire' | 'zap' | 'star';
-      replyTo?: { id: string; sender_name: string; text: string };
+      replyTo?: { id: string | number; sender_name?: string; text?: string };
     }
   ) => void;
   onSendPhoto: (filePath: string, caption: string) => void;
@@ -42,6 +44,7 @@ interface MessageInputProps {
   onOpenPollModal: () => void;
   onOpenKeyboardModal: () => void;
   onTyping: () => void;
+  lang?: 'ar' | 'en';
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
@@ -56,8 +59,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onOpenPollModal,
   onOpenKeyboardModal,
   onTyping,
+  lang = 'ar',
 }) => {
   const [text, setText] = useState('');
+  const [showFormattingBar, setShowFormattingBar] = useState(true);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showSendOptions, setShowSendOptions] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -69,6 +74,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
   const videoStreamRef = useRef<MediaStream | null>(null);
 
@@ -87,7 +93,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       ? {
           id: replyingMessage.id,
           sender_name: replyingMessage.sender_name,
-          text: replyingMessage.content.text || replyingMessage.content.caption || 'وسائط مرفقة',
+          text: replyingMessage.content?.text || replyingMessage.content?.caption || replyingMessage.text || 'وسائط مرفقة',
         }
       : undefined;
 
@@ -107,6 +113,24 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleAIAssist = (promptType: 'polish' | 'translate' | 'formal' | 'summarize') => {
+    if (!text.trim()) {
+      setText(lang === 'ar' ? 'مرحباً، أود الاستفسار عن تفاصيل المشروع الجديد.' : 'Hello, I would like to inquire about project details.');
+      return;
+    }
+
+    if (promptType === 'polish') {
+      setText((prev) => `✨ ${prev.trim()}`);
+    } else if (promptType === 'translate') {
+      // Toggle basic translation
+      setText((prev) => (prev.startsWith('[EN]') ? prev.replace('[EN] ', '') : `[EN] ${prev}`));
+    } else if (promptType === 'formal') {
+      setText((prev) => `تحية طيبة،\n${prev.trim()}\nوتفضلوا بقبول فائق الاحترام والتقدير.`);
+    } else if (promptType === 'summarize') {
+      setText((prev) => `📌 ملخص: ${prev.trim().split('\n')[0]}`);
     }
   };
 
@@ -160,8 +184,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div className="bg-slate-900 border-t border-slate-800 p-2.5 relative z-10 select-none dir-rtl">
+    <div className="bg-slate-900 border-t border-slate-800 p-2 relative z-10 select-none dir-rtl">
       
+      {/* Modern Telegram 12.x Rich Formatting Toolbar */}
+      {showFormattingBar && (
+        <div className="mb-1 rounded-t-xl overflow-hidden">
+          <RichFormattingToolbar
+            inputText={text}
+            setInputText={setText}
+            textareaRef={textareaRef}
+            lang={lang}
+            onAIAssist={handleAIAssist}
+          />
+        </div>
+      )}
+
       {/* Quoted Reply Banner */}
       {replyingMessage && (
         <div className="mb-2 p-2 bg-slate-800/90 border-r-4 border-sky-400 rounded-xl flex items-center justify-between text-xs animate-in fade-in slide-in-from-bottom-2">
@@ -170,7 +207,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             <div className="min-w-0">
               <div className="font-bold text-sky-300">الرد على {replyingMessage.sender_name}</div>
               <div className="text-slate-300 truncate text-[11px]">
-                {replyingMessage.content.text || replyingMessage.content.caption || 'رسالة مرفقة'}
+                {replyingMessage.content?.text || replyingMessage.content?.caption || replyingMessage.text || 'رسالة مرفقة'}
               </div>
             </div>
           </div>
@@ -202,7 +239,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       )}
 
-      {/* Advanced Send Options Popup Menu (4. ميزات إضافية في شاشة الدردشة) */}
+      {/* Advanced Send Options Popup Menu */}
       {showSendOptions && (
         <div className="absolute bottom-16 left-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 w-64 space-y-1 z-50 text-xs font-semibold text-slate-200 animate-in fade-in zoom-in-95">
           <div className="px-3 py-1 text-[10px] text-slate-500 uppercase font-bold tracking-wider">
@@ -287,24 +324,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 'أدخل رابط الصورة أو مسارها:',
                 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=600&q=80'
               );
-              if (path) onSendPhoto(path, 'صورة مرفقة 📷');
+              if (path) {
+                const caption = prompt('أدخل تعليق توضيحي للصورة (Caption):', 'صورة مرفقة 📷');
+                onSendPhoto(path, caption || '');
+              }
             }}
             className="w-full text-right p-2.5 hover:bg-slate-800 rounded-xl flex items-center gap-2.5 transition-colors"
           >
             <Image className="w-4 h-4 text-sky-400" />
-            <span>إرسال صورة / خلفية</span>
+            <span>إرسال صورة / GIF مع تعليق</span>
           </button>
 
           <button
             onClick={() => {
               setShowAttachMenu(false);
-              const name = prompt('أدخل اسم المستند أو مساره:', 'تطبيق_تيليجرام_الموحد.pdf');
-              if (name) onSendDocument(name, 'مستند مرفق 📁');
+              const name = prompt('أدخل اسم المستند أو مساره:', 'دليل_التعليمات.md');
+              if (name) {
+                const caption = prompt('أدخل نص توثيق المستند (Markdown):', '# دليل التوثيق\n- مرحباً بك في تليجرام ويب الموحد!');
+                onSendDocument(name, caption || 'مستند مرفق 📁');
+              }
             }}
             className="w-full text-right p-2.5 hover:bg-slate-800 rounded-xl flex items-center gap-2.5 transition-colors"
           >
             <FileText className="w-4 h-4 text-emerald-400" />
-            <span>إرسال مستند / ملف</span>
+            <span>إرسال مستند / ملف .md</span>
           </button>
 
           <button
@@ -315,7 +358,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             className="w-full text-right p-2.5 hover:bg-slate-800 rounded-xl flex items-center gap-2.5 transition-colors"
           >
             <BarChart2 className="w-4 h-4 text-amber-400" />
-            <span>إنشاء استطلاع رأي (Poll)</span>
+            <span>إنشاء استطلاع رأي متقدم (Poll)</span>
           </button>
 
           <button
@@ -331,10 +374,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       )}
 
-      {/* Recording active state (Voice or Circular Video Note) */}
+      {/* Recording active state */}
       {isRecording ? (
         <div className="flex flex-col items-center gap-3 bg-slate-800/95 rounded-3xl p-3 px-4 border border-rose-500/40 relative overflow-hidden shadow-2xl">
-          {/* Circular Video Viewfinder Preview if Video Note */}
           {recordMode === 'video' && (
             <div className="relative w-36 h-36 rounded-full overflow-hidden border-4 border-sky-400 shadow-2xl shadow-sky-500/30 my-1 bg-slate-950 flex items-center justify-center">
               <video
@@ -392,8 +434,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
           <div className="flex-1 bg-slate-800/80 rounded-2xl border border-slate-700/60 flex items-center pr-3 pl-2 py-1 focus-within:border-sky-500 transition-colors relative">
             <textarea
+              ref={textareaRef}
               rows={1}
-              placeholder="اكتب رسالتك هنا..."
+              placeholder={lang === 'ar' ? 'اكتب رسالتك هنا (يدعم التنسيق الغني و Markdown)...' : 'Write a message...'}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -428,7 +471,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             </div>
           ) : (
             <div className="flex items-center gap-1">
-              {/* Record Button (Mic or Camera depending on mode) */}
+              {/* Record Button */}
               <button
                 onClick={startRecording}
                 className="p-2.5 bg-sky-500/20 hover:bg-sky-500 text-sky-300 hover:text-slate-950 rounded-xl transition-all shadow-sm"
@@ -441,7 +484,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 )}
               </button>
 
-              {/* Toggle Record Mode Button (Mic 🎙️ / Video Note 📹) */}
+              {/* Toggle Record Mode Button */}
               <button
                 onClick={() => setRecordMode((prev) => (prev === 'audio' ? 'video' : 'audio'))}
                 className={`p-2 rounded-xl text-xs font-mono font-bold transition-colors ${

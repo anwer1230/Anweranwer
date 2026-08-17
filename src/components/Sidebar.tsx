@@ -20,20 +20,21 @@ import { TelegramDrawer } from './TelegramDrawer';
 import { AutomationTab } from './AutomationAIModal';
 import { PinnedMessagesSidebar } from './PinnedMessagesSidebar';
 import { ChatAvatar } from './ChatAvatar';
+import { TelegramUnreadBadge } from './TelegramUnreadBadge';
 
 interface SidebarProps {
   chats: Chat[];
   archivedChats: Chat[];
   folders: ChatFolder[];
   activeFolderId: string;
-  selectedChatId: number | null;
+  selectedChatId: string | number | null;
   profile: UserProfile;
   stories?: TelegramStory[];
   onOpenStoryViewer?: (index: number) => void;
   onAddStory?: () => void;
-  allPinnedMessages?: Array<{ chat_id: number; chat_title: string; chat_avatar?: string; message: Message }>;
-  onUnpinMessage?: (chatId: number, messageId: string) => void;
-  onSelectChat: (chatId: number) => void;
+  allPinnedMessages?: Array<{ chat_id: string | number; chat_title: string; chat_avatar?: string; message: Message }>;
+  onUnpinMessage?: (chatId: string | number, messageId: string | number) => void;
+  onSelectChat: (chatId: string | number) => void;
   onSelectFolder: (folderId: string) => void;
   onOpenArchive: () => void;
   onOpenProfile: () => void;
@@ -195,7 +196,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Folders Tab Strip */}
-      <div className="flex items-center overflow-x-auto no-scrollbar bg-slate-950/60 border-b border-slate-800/80 p-1.5 gap-1">
+      <div className="flex items-center overflow-x-auto no-scrollbar overscroll-x-contain touch-pan-x bg-slate-950/60 border-b border-slate-800/80 p-1.5 gap-1">
         {folders.map((folder) => {
           const isActive = activeFolderId === folder.id;
           return (
@@ -224,7 +225,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Telegram Official Stories Horizontal Carousel Bar */}
       {stories && stories.length > 0 && (
-        <div className="bg-slate-950/90 border-b border-slate-800/80 p-2 overflow-x-auto no-scrollbar flex items-center gap-3">
+        <div className="bg-slate-950/90 border-b border-slate-800/80 p-2 overflow-x-auto no-scrollbar overscroll-x-contain touch-pan-x flex items-center gap-3">
           {/* My Story + Add button */}
           <div
             onClick={onAddStory}
@@ -311,8 +312,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 {/* Chat Avatar */}
                 <ChatAvatar
+                  id={chat.id}
                   title={chat.title}
                   avatar={chat.avatar}
+                  username={chat.username}
                   type={chat.type}
                   size="lg"
                   isOnline={chat.is_online}
@@ -353,12 +356,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </p>
 
                     <div className="flex items-center gap-1 shrink-0">
-                      {chat.is_pinned && <Pin className="w-3 h-3 text-amber-400 rotate-45" />}
-                      {chat.unread_count > 0 && (
-                        <span className="bg-sky-500 text-slate-950 font-bold text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                          {chat.unread_count}
-                        </span>
-                      )}
+                      <TelegramUnreadBadge
+                        unread={chat.unread_count || (chat as any).unread}
+                        isMuted={chat.is_muted || (chat as any).muted}
+                        isPinned={chat.is_pinned || (chat as any).pinned}
+                        unreadMentions={(chat as any).unread_mentions || (chat as any).unread_mentions_count || 0}
+                        unreadReactions={(chat as any).unread_reactions}
+                        size="sm"
+                      />
                     </div>
                   </div>
                 </div>

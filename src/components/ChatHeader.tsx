@@ -28,15 +28,15 @@ interface ChatHeaderProps {
   chat: Chat;
   pinnedMessages?: Message[];
   onBack: () => void;
-  onMute: (chatId: number, duration: number) => void;
-  onPin: (chatId: number, pinned: boolean) => void;
-  onArchive: (chatId: number, archive: boolean) => void;
-  onClear: (chatId: number) => void;
-  onDelete: (chatId: number) => void;
-  onLeaveGroup?: (chatId: number) => void;
-  onShowMembers: (chatId: number) => void;
-  onShowInviteLink: (chatId: number) => void;
-  onUnpinMessage?: (chatId: number, messageId: string) => void;
+  onMute: (chatId: string | number, duration: number) => void;
+  onPin: (chatId: string | number, pinned: boolean) => void;
+  onArchive: (chatId: string | number, archive: boolean) => void;
+  onClear: (chatId: string | number) => void;
+  onDelete: (chatId: string | number) => void;
+  onLeaveGroup?: (chatId: string | number) => void;
+  onShowMembers: (chatId: string | number) => void;
+  onShowInviteLink: (chatId: string | number) => void;
+  onUnpinMessage?: (chatId: string | number, messageId: string | number) => void;
   onOpenVoiceCall?: () => void;
   onOpenVideoCall?: () => void;
   onOpenThemeModal?: () => void;
@@ -392,9 +392,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               </div>
               <p className="text-[11px] text-slate-300 truncate font-sans">
                 <span className="text-sky-300 font-semibold">{activePinnedMsg.sender_name}: </span>
-                {activePinnedMsg.content.type === 'text'
-                  ? activePinnedMsg.content.text
-                  : activePinnedMsg.content.caption || `[${activePinnedMsg.content.type.toUpperCase()}]`}
+                {activePinnedMsg.content?.type === 'text'
+                  ? activePinnedMsg.content?.text
+                  : activePinnedMsg.content?.caption || activePinnedMsg.text || `[${(activePinnedMsg.content?.type || 'MESSAGE').toUpperCase()}]`}
               </p>
             </div>
           </div>

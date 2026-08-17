@@ -1,55 +1,60 @@
 import React, { useState } from 'react';
-import { Users, Bot, Radio, Lock, User, Sparkles } from 'lucide-react';
+import { Users, Bot, Radio, Lock, Bookmark, CheckCircle2 } from 'lucide-react';
+import { ChatType } from '../types';
+import { getPeerColor, getPeerInitials } from '../utils/telegramPeerUtils';
 
 interface ChatAvatarProps {
+  id?: string | number;
   title: string;
-  avatar?: string;
-  type?: 'private' | 'group' | 'supergroup' | 'channel' | 'bot' | 'secret';
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  avatar?: string | null;
+  photo?: string | null;
+  username?: string | null;
+  type?: ChatType | string;
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   isOnline?: boolean;
+  isVerified?: boolean;
+  isSaved?: boolean;
   className?: string;
 }
 
-// Deterministic Telegram color gradients based on title hash
-const GRADIENTS = [
-  'from-sky-500 to-blue-600',
-  'from-emerald-500 to-teal-700',
-  'from-violet-500 to-purple-700',
-  'from-amber-500 to-orange-600',
-  'from-rose-500 to-pink-600',
-  'from-indigo-500 to-cyan-600',
-  'from-teal-500 to-emerald-700',
-];
-
-function getGradient(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const index = Math.abs(hash) % GRADIENTS.length;
-  return GRADIENTS[index];
-}
-
-function getInitials(str: string): string {
-  if (!str) return 'T';
-  const cleanStr = str.replace(/[^\p{L}\p{N}\s]/gu, '').trim();
-  if (!cleanStr) return str.charAt(0).toUpperCase();
-  const parts = cleanStr.split(/\s+/);
-  if (parts.length >= 2) {
-    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
-  }
-  return cleanStr.charAt(0).toUpperCase();
-}
-
 export const ChatAvatar: React.FC<ChatAvatarProps> = ({
+  id,
   title,
   avatar,
+  photo,
+  username,
   type = 'private',
   size = 'md',
   isOnline = false,
+  isVerified = false,
+  isSaved = false,
   className = '',
 }) => {
-  const [imageError, setImageError] = useState(false);
+  const [errorCount, setErrorCount] = useState(0);
+
+  const cleanUsername = username ? username.replace('@', '').trim() : '';
+  const isSavedMessages = isSaved || type === 'saved' || id === 1001 || title === 'الرسائل المحفوظة' || title === 'Saved Messages';
+
+  // Primary image source, with fallback to real Telegram CDN userpic if username is present, or /api/avatar/:id
+  let activeSrc: string | null = null;
+  if (!isSavedMessages) {
+    if (errorCount === 0) {
+      if (avatar || photo) {
+        activeSrc = avatar || photo || null;
+      } else if (cleanUsername) {
+        activeSrc = `https://t.me/i/userpic/320/${encodeURIComponent(cleanUsername)}.jpg`;
+      } else if (id !== undefined && id !== null && String(id).length > 0) {
+        activeSrc = `/api/avatar/${encodeURIComponent(String(id))}`;
+      }
+    } else if (errorCount === 1) {
+      // First fallback attempt
+      if (cleanUsername && (!activeSrc || !activeSrc.includes('t.me'))) {
+        activeSrc = `https://t.me/i/userpic/320/${encodeURIComponent(cleanUsername)}.jpg`;
+      } else if (id !== undefined && id !== null) {
+        activeSrc = `/api/avatar/${encodeURIComponent(String(id))}`;
+      }
+    }
+  }
 
   // Size mapping
   const sizeClasses = {
@@ -57,7 +62,8 @@ export const ChatAvatar: React.FC<ChatAvatarProps> = ({
     sm: 'w-8 h-8 text-xs',
     md: 'w-10 h-10 text-sm',
     lg: 'w-12 h-12 text-base',
-    xl: 'w-16 h-16 text-xl',
+    xl: 'w-14 h-14 text-lg',
+    '2xl': 'w-20 h-20 text-2xl',
   }[size];
 
   const iconSizes = {
@@ -65,38 +71,46 @@ export const ChatAvatar: React.FC<ChatAvatarProps> = ({
     sm: 'w-4 h-4',
     md: 'w-5 h-5',
     lg: 'w-6 h-6',
-    xl: 'w-8 h-8',
+    xl: 'w-7 h-7',
+    '2xl': 'w-10 h-10',
   }[size];
 
-  const initials = getInitials(title);
-  const gradient = getGradient(title || 'Telegram');
+  const peerColor = getPeerColor(id !== undefined ? id : title);
+  const initials = getPeerInitials(title);
 
-  // Render type-specific badge icon overlay
+  // Type badge overlay icon
   const renderTypeOverlay = () => {
+    if (isSavedMessages) {
+      return (
+        <div className="absolute -bottom-0.5 -right-0.5 bg-blue-600 text-white p-0.5 rounded-full border border-slate-900 shadow-sm" title="Saved Messages">
+          <Bookmark className="w-2.5 h-2.5" />
+        </div>
+      );
+    }
     if (type === 'secret') {
       return (
-        <div className="absolute -bottom-0.5 -right-0.5 bg-emerald-600 text-white p-0.5 rounded-full border border-slate-900 shadow-sm">
+        <div className="absolute -bottom-0.5 -right-0.5 bg-emerald-600 text-white p-0.5 rounded-full border border-slate-900 shadow-sm" title="Secret Chat">
           <Lock className="w-2.5 h-2.5" />
         </div>
       );
     }
     if (type === 'bot') {
       return (
-        <div className="absolute -bottom-0.5 -right-0.5 bg-purple-600 text-white p-0.5 rounded-full border border-slate-900 shadow-sm">
+        <div className="absolute -bottom-0.5 -right-0.5 bg-purple-600 text-white p-0.5 rounded-full border border-slate-900 shadow-sm" title="Bot">
           <Bot className="w-2.5 h-2.5" />
         </div>
       );
     }
     if (type === 'channel') {
       return (
-        <div className="absolute -bottom-0.5 -right-0.5 bg-sky-600 text-white p-0.5 rounded-full border border-slate-900 shadow-sm">
+        <div className="absolute -bottom-0.5 -right-0.5 bg-sky-500 text-white p-0.5 rounded-full border border-slate-900 shadow-sm" title="Channel">
           <Radio className="w-2.5 h-2.5" />
         </div>
       );
     }
     if (type === 'group' || type === 'supergroup') {
       return (
-        <div className="absolute -bottom-0.5 -right-0.5 bg-indigo-600 text-white p-0.5 rounded-full border border-slate-900 shadow-sm">
+        <div className="absolute -bottom-0.5 -right-0.5 bg-indigo-600 text-white p-0.5 rounded-full border border-slate-900 shadow-sm" title="Group">
           <Users className="w-2.5 h-2.5" />
         </div>
       );
@@ -105,21 +119,32 @@ export const ChatAvatar: React.FC<ChatAvatarProps> = ({
   };
 
   return (
-    <div className={`relative shrink-0 ${className}`}>
-      {avatar && !imageError ? (
+    <div className={`relative shrink-0 select-none ${className}`}>
+      {isSavedMessages && !activeSrc ? (
+        /* Saved Messages Telegram Official Icon */
+        <div
+          className={`${sizeClasses} rounded-full flex items-center justify-center text-white shadow-md border border-white/10`}
+          style={{ background: 'linear-gradient(135deg, #2AABEE 0%, #229ED9 100%)' }}
+        >
+          <Bookmark className={iconSizes} fill="currentColor" />
+        </div>
+      ) : activeSrc && errorCount < 2 ? (
         <img
-          src={avatar}
+          src={activeSrc}
           alt={title}
-          onError={() => setImageError(true)}
+          referrerPolicy="no-referrer"
+          onError={() => setErrorCount((c) => c + 1)}
           className={`${sizeClasses} rounded-full object-cover border border-slate-700/80 shadow-sm`}
+          loading="lazy"
         />
       ) : (
-        /* Dynamic Telegram Gradient Icon/Initials Avatar */
+        /* Authentic Telegram 7-Peer-Color Gradient with Initials or Type Icon */
         <div
-          className={`${sizeClasses} rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center font-bold text-white shadow-md border border-white/10 select-none`}
+          className={`${sizeClasses} rounded-full flex items-center justify-center font-bold text-white shadow-md border border-white/10`}
+          style={{ background: peerColor.gradient }}
         >
           {type === 'bot' ? (
-            <Sparkles className={iconSizes} />
+            <Bot className={iconSizes} />
           ) : type === 'channel' ? (
             <Radio className={iconSizes} />
           ) : type === 'group' || type === 'supergroup' ? (
@@ -127,18 +152,25 @@ export const ChatAvatar: React.FC<ChatAvatarProps> = ({
           ) : type === 'secret' ? (
             <Lock className={iconSizes} />
           ) : (
-            <span>{initials}</span>
+            <span className="font-semibold tracking-wide">{initials}</span>
           )}
         </div>
       )}
 
       {/* Online indicator */}
-      {isOnline && (
-        <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-900 shadow-sm" />
+      {isOnline && type === 'private' && (
+        <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-900 shadow-sm" />
       )}
 
-      {/* Type overlay badge if image is shown */}
-      {avatar && !imageError && renderTypeOverlay()}
+      {/* Verified star badge */}
+      {isVerified && (
+        <div className="absolute -top-0.5 -right-0.5 text-sky-400 bg-slate-900 rounded-full p-0.5">
+          <CheckCircle2 className="w-3 h-3" fill="currentColor" stroke="none" />
+        </div>
+      )}
+
+      {/* Type overlay badge */}
+      {renderTypeOverlay()}
     </div>
   );
 };

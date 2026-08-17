@@ -26,32 +26,42 @@ import {
   Heart,
   PartyPopper,
   CornerUpLeft,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  ShieldAlert,
 } from 'lucide-react';
 import { Message, Chat, InlineKeyboardButton } from '../types';
 import { ChatAvatar } from './ChatAvatar';
+import { SystemMessageItem } from './SystemMessageItem';
+import { MemberTagBadge } from './MemberTagBadge';
 
 interface MessageListProps {
   messages: Message[];
-  currentUserId: string;
+  currentUserId: string | number;
   allChats?: Chat[];
-  onReaction: (chatId: number, messageId: string, reaction: string) => void;
+  activeChat?: Chat | null;
+  onReaction: (chatId: string | number, messageId: string | number, reaction: string) => void;
   onEdit: (message: Message) => void;
-  onDelete: (chatId: number, messageId: string) => void;
-  onPinMessage?: (chatId: number, messageId: string, pinned: boolean) => void;
+  onDelete: (chatId: string | number, messageId: string | number) => void;
+  onPinMessage?: (chatId: string | number, messageId: string | number, pinned: boolean) => void;
   onReply?: (message: Message) => void;
-  onForward?: (message: Message, targetChatId: number) => void;
+  onForward?: (message: Message, targetChatId: string | number) => void;
   onOpenSenderProfile?: (senderName: string, avatar?: string) => void;
   onAnswerCallback: (callbackId: string, text: string) => void;
-  onDownloadFile: (fileId: string) => void;
+  onDownloadFile: (fileId: string | number) => void;
   downloadProgress: Record<string, number>;
   chatWallpaper?: string;
   onOpenLinkModal?: (url: string) => void;
+  onOpenMarkdownDoc?: (title: string, content: string) => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
   currentUserId,
   allChats = [],
+  activeChat,
   onReaction,
   onEdit,
   onDelete,
@@ -64,12 +74,15 @@ export const MessageList: React.FC<MessageListProps> = ({
   downloadProgress,
   chatWallpaper,
   onOpenLinkModal,
+  onOpenMarkdownDoc,
 }) => {
-  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | number | null>(null);
   const [activeContextMenuMsg, setActiveContextMenuMsg] = useState<Message | null>(null);
   const [forwardModalMsg, setForwardModalMsg] = useState<Message | null>(null);
   const [translatedMsgs, setTranslatedMsgs] = useState<Record<string, string>>({});
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [revealedSpoilers, setRevealedSpoilers] = useState<Record<string, boolean>>({});
+  const [collapsedQuotes, setCollapsedQuotes] = useState<Record<string, boolean>>({});
+  const [copiedCodeIndex, setCopiedCodeIndex] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -83,23 +96,21 @@ export const MessageList: React.FC<MessageListProps> = ({
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  const toggleVoice = (id: string) => {
+  const toggleVoice = (id: string | number) => {
     if (playingVoiceId === id) setPlayingVoiceId(null);
     else setPlayingVoiceId(id);
   };
 
-  const copyText = (text: string, id: string) => {
+  const copyText = (text: string, id: string | number) => {
     navigator.clipboard.writeText(text);
-    setCopiedId(id);
     showToast('📋 تم نسخ النص للحافظة بنجاح');
     setActiveContextMenuMsg(null);
   };
 
   const handleTranslate = (msg: Message) => {
-    const text = msg.content.text || msg.content.caption || '';
+    const text = msg.content?.text || msg.content?.caption || msg.text || '';
     if (!text) return;
 
-    // Simulate instant AI Translation to Arabic with indicator
     const arabicTranslation = `[مترجم آلياً]: ${text.replace(/hello/gi, 'أهلاً بك').replace(/telegram/gi, 'تليجرام').replace(/welcome/gi, 'مرحباً')}`;
     setTranslatedMsgs((prev) => ({ ...prev, [msg.id]: arabicTranslation }));
     showToast('🌐 تمت ترجمة النص بنجاح');
@@ -108,42 +119,178 @@ export const MessageList: React.FC<MessageListProps> = ({
 
   const reactionList = ['👍', '❤️', '🔥', '🎉', '👏', '😮', '😢', '💩', '⚡', '⭐'];
 
-  // Helper to format text with links detection and basic markdown
-  const renderFormattedText = (text: string) => {
+  // Enhanced parser for Telegram 12.x formatting: Code blocks, Spoilers, Collapsible Quotes, Headings, Links
+  const renderAdvancedFormattedText = (rawText: string, messageId: string | number) => {
     const urlRegex = /(https?:\/\/[^\s]+|t\.me\/[^\s]+|telegram\.me\/[^\s]+)/gi;
+    const lines = rawText.split('\n');
+    const result: React.ReactNode[] = [];
 
-    return text.split('\n').map((line, lineIdx) => {
-      const parts = line.split(urlRegex);
-      return (
-        <React.Fragment key={lineIdx}>
-          {lineIdx > 0 && <br />}
-          {parts.map((part, pIdx) => {
-            if (part && part.match(urlRegex)) {
-              const fullUrl = part.startsWith('http') ? part : `https://${part}`;
-              return (
+    let inCodeBlock = false;
+    let codeBuffer: string[] = [];
+    let codeLanguage = '';
+    let quoteBuffer: string[] = [];
+    let quoteStartIndex = -1;
+
+    const flushQuote = (keyIdx: number) => {
+      if (quoteBuffer.length === 0) return;
+      const quoteKey = `${messageId}_q_${keyIdx}`;
+      const isCollapsed = collapsedQuotes[quoteKey] || false;
+      const contentText = quoteBuffer.join('\n');
+
+      result.push(
+        <div
+          key={quoteKey}
+          className="my-1.5 rounded-lg border-r-4 border-sky-400 bg-sky-950/30 p-2 text-xs transition-all"
+        >
+          <div
+            onClick={() => setCollapsedQuotes((prev) => ({ ...prev, [quoteKey]: !isCollapsed }))}
+            className="flex cursor-pointer items-center justify-between font-bold text-sky-300 select-none hover:text-sky-200"
+          >
+            <span className="flex items-center gap-1.5">
+              <span className="text-sky-400">❝</span> اقتباس قابل للطي
+            </span>
+            {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+          </div>
+          {!isCollapsed && (
+            <div className="mt-1.5 whitespace-pre-wrap text-slate-200 opacity-90 italic">
+              {contentText}
+            </div>
+          )}
+        </div>
+      );
+      quoteBuffer = [];
+      quoteStartIndex = -1;
+    };
+
+    lines.forEach((line, idx) => {
+      // 1. Code Block starts or ends
+      if (line.startsWith('```')) {
+        if (inCodeBlock) {
+          // End of code block
+          const codeKey = `${messageId}_code_${idx}`;
+          const codeString = codeBuffer.join('\n');
+          result.push(
+            <div
+              key={codeKey}
+              className="my-2 overflow-hidden rounded-xl border border-white/10 bg-slate-950 p-2.5 font-mono text-[11px] shadow-md"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-1.5 mb-1.5 text-[10px] text-slate-400">
+                <span className="uppercase text-sky-400 font-bold">{codeLanguage || 'CODE'}</span>
                 <button
-                  key={pIdx}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (onOpenLinkModal) {
-                      onOpenLinkModal(fullUrl);
-                    } else {
-                      window.open(fullUrl, '_blank');
-                    }
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(codeString);
+                    setCopiedCodeIndex(codeKey);
+                    setTimeout(() => setCopiedCodeIndex(null), 1800);
                   }}
-                  className="text-amber-300 hover:text-amber-200 underline font-semibold dir-ltr inline-flex items-center gap-1 px-1.5 py-0.5 my-0.5 rounded-md bg-black/20 hover:bg-black/40 transition-colors"
-                  title="انقر لعرض خيارات وتفاصيل الرابط"
+                  className="flex items-center gap-1 hover:text-emerald-300 text-slate-400 font-sans"
                 >
-                  <ExternalLink className="w-3 h-3 text-amber-400 inline shrink-0" />
-                  <span>{part}</span>
+                  <Copy className="w-3 h-3" />
+                  <span>{copiedCodeIndex === codeKey ? 'تم النسخ!' : 'نسخ الكود'}</span>
                 </button>
-              );
-            }
-            return <span key={pIdx}>{part}</span>;
-          })}
-        </React.Fragment>
+              </div>
+              <pre className="overflow-x-auto whitespace-pre text-emerald-300 py-1">{codeString}</pre>
+            </div>
+          );
+          codeBuffer = [];
+          inCodeBlock = false;
+        } else {
+          // Flush quote if any
+          flushQuote(idx);
+          inCodeBlock = true;
+          codeLanguage = line.replace('```', '').trim();
+        }
+        return;
+      }
+
+      if (inCodeBlock) {
+        codeBuffer.push(line);
+        return;
+      }
+
+      // 2. Collapsible Quote Line
+      if (line.startsWith('> ') || line.startsWith('&gt; ')) {
+        if (quoteStartIndex === -1) quoteStartIndex = idx;
+        quoteBuffer.push(line.replace(/^(> |&gt; )/, ''));
+        return;
+      } else {
+        flushQuote(idx);
+      }
+
+      // 3. Headings
+      if (line.startsWith('### ')) {
+        result.push(
+          <div key={`h_${idx}`} className="font-bold text-sm text-sky-300 my-1">
+            {line.replace('### ', '')}
+          </div>
+        );
+        return;
+      }
+
+      // 4. In-line spoilers (||spoiler||) & URL detection & Bold/Italic
+      const spoilerRegex = /\|\|(.*?)\|\|/g;
+      let parsedLine: React.ReactNode = line;
+
+      // Handle spoilers
+      if (line.includes('||')) {
+        const spoilerKey = `${messageId}_sp_${idx}`;
+        const isRevealed = revealedSpoilers[spoilerKey] || false;
+        const spoilerParts = line.split(spoilerRegex);
+
+        parsedLine = spoilerParts.map((part, sIdx) => {
+          if (sIdx % 2 === 1) {
+            // inside spoiler
+            return (
+              <span
+                key={sIdx}
+                onClick={() => setRevealedSpoilers((prev) => ({ ...prev, [spoilerKey]: !isRevealed }))}
+                className={`cursor-pointer rounded px-1.5 py-0.5 transition-all select-none ${
+                  isRevealed
+                    ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40'
+                    : 'bg-slate-700 text-transparent blur-xs hover:bg-slate-600'
+                }`}
+                title={isRevealed ? 'إخفاء النص' : 'انقر لإظهار النص المخفي'}
+              >
+                {part}
+              </span>
+            );
+          }
+          return part;
+        });
+      }
+
+      // Format URLs in standard lines
+      result.push(
+        <div key={`line_${idx}`} className="leading-relaxed dir-auto">
+          {typeof parsedLine === 'string'
+            ? parsedLine.split(urlRegex).map((part, pIdx) => {
+                if (part && part.match(urlRegex)) {
+                  const fullUrl = part.startsWith('http') ? part : `https://${part}`;
+                  return (
+                    <button
+                      key={pIdx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onOpenLinkModal) onOpenLinkModal(fullUrl);
+                        else window.open(fullUrl, '_blank');
+                      }}
+                      className="text-amber-300 hover:text-amber-200 underline font-semibold dir-ltr inline-flex items-center gap-1 px-1.5 py-0.5 my-0.5 rounded-md bg-black/20 hover:bg-black/40 transition-colors"
+                      title="عرض تفاصيل الرابط"
+                    >
+                      <ExternalLink className="w-3 h-3 text-amber-400 inline shrink-0" />
+                      <span>{part}</span>
+                    </button>
+                  );
+                }
+                return <span key={pIdx}>{part}</span>;
+              })
+            : parsedLine}
+        </div>
       );
     });
+
+    flushQuote(lines.length);
+    return result;
   };
 
   return (
@@ -176,8 +323,28 @@ export const MessageList: React.FC<MessageListProps> = ({
         </div>
       ) : (
         messages.map((msg) => {
+          // If this is a System Message
+          if (msg.is_system || (msg.content?.type as any) === 'system' || msg.sender_id === 'system') {
+            const systemText = msg.text || msg.content?.text || 'إشعار نظام';
+            return (
+              <SystemMessageItem
+                key={msg.id}
+                text={systemText}
+                type={msg.system_type}
+                date={msg.date}
+                isMe={msg.is_outgoing || msg.from_me}
+              />
+            );
+          }
+
           const isOut = msg.is_outgoing;
           const translated = translatedMsgs[msg.id];
+          const senderRole =
+            msg.sender_name?.toLowerCase().includes('admin') || msg.sender_name?.toLowerCase().includes('مشرف')
+              ? 'admin'
+              : msg.sender_name?.toLowerCase().includes('bot')
+              ? 'bot'
+              : undefined;
 
           return (
             <div
@@ -185,17 +352,19 @@ export const MessageList: React.FC<MessageListProps> = ({
               id={`msg_${msg.id}`}
               className={`flex flex-col group ${isOut ? 'items-end' : 'items-start'}`}
             >
-              {/* Sender Avatar & Name Header */}
+              {/* Sender Avatar & Name Header with Member Tags */}
               {!isOut && (
                 <div
-                  onClick={() => onOpenSenderProfile?.(msg.sender_name, msg.sender_avatar)}
+                  onClick={() => onOpenSenderProfile?.(msg.sender_name || 'مستخدم', msg.sender_avatar)}
                   className="flex items-center gap-1.5 mb-1 mr-1 cursor-pointer group-hover:opacity-100 opacity-90 transition-opacity"
                   title="عرض الملف الشخصي"
                 >
-                  <ChatAvatar title={msg.sender_name} avatar={msg.sender_avatar} size="xs" />
+                  <ChatAvatar title={msg.sender_name || 'User'} avatar={msg.sender_avatar} size="xs" />
                   <span className="text-[11px] font-bold text-sky-400 hover:underline">
-                    {msg.sender_name}
+                    {msg.sender_name || 'مستخدم'}
                   </span>
+                  {/* Modern Colored Member Tag Badge */}
+                  {senderRole && <MemberTagBadge role={senderRole} />}
                 </div>
               )}
 
@@ -215,7 +384,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                 <button
                   onClick={() => onReply?.(msg)}
                   className="absolute -left-8 top-1/2 -translate-y-1/2 p-1.5 bg-slate-900/80 text-sky-400 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
-                  title="المسح أو النقر للرد"
+                  title="الرد على الرسالة"
                 >
                   <CornerUpLeft className="w-4 h-4" />
                 </button>
@@ -272,10 +441,10 @@ export const MessageList: React.FC<MessageListProps> = ({
                   </div>
                 )}
 
-                {/* Content type: TEXT */}
-                {msg.content.type === 'text' && (
-                  <div className="whitespace-pre-wrap leading-relaxed text-sm font-sans dir-auto">
-                    {renderFormattedText(msg.content.text || '')}
+                {/* Content type: TEXT with Advanced Formatting */}
+                {msg.content?.type === 'text' && (
+                  <div className="space-y-1">
+                    {renderAdvancedFormattedText(msg.content.text || msg.text || '', msg.id)}
                   </div>
                 )}
 
@@ -287,7 +456,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                 )}
 
                 {/* Content type: PHOTO */}
-                {msg.content.type === 'photo' && (
+                {msg.content?.type === 'photo' && (
                   <div className="space-y-2">
                     <img
                       src={
@@ -303,8 +472,8 @@ export const MessageList: React.FC<MessageListProps> = ({
                   </div>
                 )}
 
-                {/* Content type: DOCUMENT */}
-                {msg.content.type === 'document' && (
+                {/* Content type: DOCUMENT with .md In-App Reader support */}
+                {msg.content?.type === 'document' && (
                   <div className="flex items-center gap-3 p-2 bg-black/20 rounded-xl border border-white/10 min-w-[220px]">
                     <div className="p-2.5 bg-sky-500/20 text-sky-300 rounded-lg shrink-0">
                       <FileText className="w-6 h-6" />
@@ -328,18 +497,36 @@ export const MessageList: React.FC<MessageListProps> = ({
                       )}
                     </div>
 
-                    <button
-                      onClick={() => onDownloadFile(msg.id)}
-                      className="p-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold rounded-lg shrink-0 transition-colors"
-                      title="تحميل الملف"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {/* If Markdown document (.md), allow opening inside in-app MD reader */}
+                      {msg.content.fileName?.endsWith('.md') && (
+                        <button
+                          onClick={() =>
+                            onOpenMarkdownDoc?.(
+                              msg.content?.fileName || 'document.md',
+                              msg.content?.caption || msg.content?.text || '# دليل التوثيق والتعليمات\n- يدعم تليجرام عارض Markdown المدمج\n```json\n{"status": "ok"}\n```'
+                            )
+                          }
+                          className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors text-xs font-bold"
+                          title="عرض المستند داخل التطبيق (.md Viewer)"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => onDownloadFile(msg.id)}
+                        className="p-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold rounded-lg shrink-0 transition-colors"
+                        title="تحميل الملف"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 )}
 
                 {/* Content type: VOICE */}
-                {msg.content.type === 'voice' && (
+                {msg.content?.type === 'voice' && (
                   <div className="flex items-center gap-3 p-1.5 min-w-[210px]">
                     <button
                       onClick={() => toggleVoice(msg.id)}
@@ -372,8 +559,8 @@ export const MessageList: React.FC<MessageListProps> = ({
                   </div>
                 )}
 
-                {/* Content type: CIRCULAR VIDEO NOTE (مقطع فيديو دائرِي) */}
-                {msg.content.type === 'video_note' && (
+                {/* Content type: CIRCULAR VIDEO NOTE */}
+                {msg.content?.type === 'video_note' && (
                   <div className="relative my-1 flex flex-col items-center">
                     <div className="relative w-44 h-44 rounded-full overflow-hidden border-4 border-sky-400 shadow-2xl bg-slate-950 flex items-center justify-center group/vid">
                       <video
@@ -404,31 +591,46 @@ export const MessageList: React.FC<MessageListProps> = ({
                   </div>
                 )}
 
-                {/* Content type: POLL */}
-                {msg.content.type === 'poll' && msg.content.poll && (
-                  <div className="space-y-2 min-w-[240px]">
-                    <div className="font-bold text-xs flex items-center gap-1.5">
+                {/* Content type: POLL (Enhanced with option links & voting details) */}
+                {msg.content?.type === 'poll' && msg.content.poll && (
+                  <div className="space-y-2 min-w-[260px]">
+                    <div className="font-bold text-xs flex items-center gap-1.5 text-slate-100">
                       <BarChart2 className="w-4 h-4 text-amber-400" />
                       <span>{msg.content.poll.question}</span>
                     </div>
 
-                    <div className="space-y-1.5">
-                      {msg.content.poll.options.map((opt) => {
-                        const pct = msg.content.poll!.totalVotes
-                          ? Math.round((opt.votes / msg.content.poll!.totalVotes) * 100)
-                          : 0;
+                    <div className="space-y-2">
+                      {msg.content.poll.options.map((opt: any) => {
+                        const total = msg.content?.poll?.totalVotes || msg.content?.poll?.total_voters || 1;
+                        const pct = Math.round(((opt.votes || 0) / total) * 100);
                         return (
                           <div
-                            key={opt.id}
-                            className="p-2 bg-black/20 hover:bg-black/30 rounded-xl cursor-pointer transition-colors border border-white/5"
+                            key={opt.id || opt.text}
+                            className="p-2.5 bg-black/25 hover:bg-black/40 rounded-xl transition-colors border border-white/5 space-y-1.5"
                           >
-                            <div className="flex justify-between text-xs mb-1 font-medium">
+                            <div className="flex justify-between items-center text-xs font-medium">
                               <span>{opt.text}</span>
-                              <span className="font-mono text-[10px] font-bold">{pct}%</span>
+                              <span className="font-mono text-[10px] font-bold text-sky-300">{pct}%</span>
                             </div>
+
+                            {/* Option Attached Link URL (Telegram 12.8 feature) */}
+                            {opt.linkUrl && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onOpenLinkModal) onOpenLinkModal(opt.linkUrl);
+                                  else window.open(opt.linkUrl, '_blank');
+                                }}
+                                className="text-[10px] text-amber-300 hover:text-amber-200 flex items-center gap-1 font-mono"
+                              >
+                                <ExternalLink className="w-2.5 h-2.5" />
+                                <span className="truncate max-w-[200px]">{opt.linkUrl}</span>
+                              </button>
+                            )}
+
                             <div className="w-full bg-slate-700/60 h-1.5 rounded-full overflow-hidden">
                               <div
-                                className="bg-sky-400 h-full transition-all duration-500"
+                                className="bg-gradient-to-r from-sky-400 to-blue-500 h-full transition-all duration-500"
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
@@ -440,9 +642,9 @@ export const MessageList: React.FC<MessageListProps> = ({
                 )}
 
                 {/* Inline Keyboard Rows */}
-                {msg.reply_markup && msg.reply_markup.rows.length > 0 && (
+                {msg.reply_markup && msg.reply_markup.rows?.length > 0 && (
                   <div className="mt-2.5 pt-2 border-t border-white/10 space-y-1.5">
-                    {msg.reply_markup.rows.map((row, rIdx) => (
+                    {msg.reply_markup.rows.map((row: InlineKeyboardButton[], rIdx: number) => (
                       <div key={rIdx} className="flex gap-1.5">
                         {row.map((btn, bIdx) => (
                           <button
@@ -471,7 +673,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                         key={i}
                         onClick={() => onReaction(msg.chat_id, msg.id, r.emoji)}
                         className={`text-[11px] px-2 py-0.5 rounded-full border flex items-center gap-1 transition-colors ${
-                          r.users.includes('me')
+                          r.users?.includes('me') || r.mine
                             ? 'bg-sky-500/30 border-sky-400 text-sky-200'
                             : 'bg-black/20 border-white/10 text-slate-300'
                         }`}
@@ -492,7 +694,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                       minute: '2-digit',
                     })}
                   </span>
-                  {/* Status Checkmarks (pending 🕒, sent ✓, delivered ✓✓, read ✓✓ blue) */}
+                  {/* Status Checkmarks */}
                   {isOut && (
                     <div className="flex items-center">
                       {msg.status === 'pending' ? (
@@ -538,9 +740,9 @@ export const MessageList: React.FC<MessageListProps> = ({
                     <Share2 className="w-3.5 h-3.5" />
                   </button>
 
-                  {msg.content.type === 'text' && (
+                  {msg.content?.type === 'text' && (
                     <button
-                      onClick={() => copyText(msg.content.text || '', msg.id)}
+                      onClick={() => copyText(msg.content?.text || msg.text || '', msg.id)}
                       className="p-1 hover:text-emerald-400 text-slate-400"
                       title="نسخ النص"
                     >
@@ -548,7 +750,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                     </button>
                   )}
 
-                  {isOut && msg.content.type === 'text' && (
+                  {isOut && msg.content?.type === 'text' && (
                     <button
                       onClick={() => onEdit(msg)}
                       className="p-1 hover:text-amber-400 text-slate-400"
@@ -572,7 +774,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         })
       )}
 
-      {/* Floating Context Menu Modal (1. الضغط على أي رسالة - قائمة الخيارات) */}
+      {/* Floating Context Menu Modal */}
       {activeContextMenuMsg && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs select-none"
@@ -620,9 +822,9 @@ export const MessageList: React.FC<MessageListProps> = ({
               <span>إعادة التوجيه (Forward)</span>
             </button>
 
-            {activeContextMenuMsg.content.type === 'text' && (
+            {activeContextMenuMsg.content?.type === 'text' && (
               <button
-                onClick={() => copyText(activeContextMenuMsg.content.text || '', activeContextMenuMsg.id)}
+                onClick={() => copyText(activeContextMenuMsg.content?.text || activeContextMenuMsg.text || '', activeContextMenuMsg.id)}
                 className="w-full text-right p-2.5 hover:bg-slate-800 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-emerald-400 transition-colors"
               >
                 <Copy className="w-4 h-4 text-emerald-400" />
@@ -652,7 +854,7 @@ export const MessageList: React.FC<MessageListProps> = ({
               </span>
             </button>
 
-            {activeContextMenuMsg.is_outgoing && activeContextMenuMsg.content.type === 'text' && (
+            {activeContextMenuMsg.is_outgoing && activeContextMenuMsg.content?.type === 'text' && (
               <button
                 onClick={() => {
                   onEdit(activeContextMenuMsg);
@@ -695,7 +897,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <div className="font-bold text-sm text-slate-100 flex items-center gap-2">
                 <Share2 className="w-4 h-4 text-purple-400" />
-                <span>اختر المحادثة لتوحيه الرسالة إليها:</span>
+                <span>اختر المحادثة لتوجيه الرسالة إليها:</span>
               </div>
               <button onClick={() => setForwardModalMsg(null)} className="text-slate-400 hover:text-white">
                 <X className="w-4 h-4" />

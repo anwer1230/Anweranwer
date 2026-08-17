@@ -32,9 +32,9 @@ export const MembersModal: React.FC<MembersModalProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {members.map((m) => (
+          {members.map((m, idx) => (
             <div
-              key={m.id}
+              key={m.id || m.user_id || idx}
               className="p-2.5 bg-slate-800/80 rounded-2xl border border-slate-700/50 flex items-center justify-between"
             >
               <div className="flex items-center gap-2.5">
@@ -50,12 +50,12 @@ export const MembersModal: React.FC<MembersModalProps> = ({
               </div>
 
               <div className="text-[10px] font-bold px-2 py-0.5 rounded-full font-sans">
-                {m.role === 'owner' && (
+                {(m.role === 'owner' || m.role === 'creator') && (
                   <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 px-2 py-0.5 rounded-full flex items-center gap-1">
                     <Shield className="w-3 h-3" /> المالك
                   </span>
                 )}
-                {m.role === 'administrator' && (
+                {(m.role === 'administrator' || m.role === 'admin') && (
                   <span className="bg-sky-500/20 text-sky-400 border border-sky-500/40 px-2 py-0.5 rounded-full flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3" /> مشرف
                   </span>
