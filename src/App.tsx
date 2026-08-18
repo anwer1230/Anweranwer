@@ -1603,19 +1603,14 @@ export default function App() {
             fetchActualProfilePhoto();
             setIsCheckingAuth(false);
             return;
+          } else {
+            // Stale or expired session on Telegram servers - clear from storage
+            console.warn('Saved Telegram session is no longer valid:', data.error);
+            localStorage.removeItem('tg_session');
           }
         } catch (e) {
-          console.log('Saved session restore failed, using cached session:', e);
-          // If network failed (offline), but we have a saved session, keep logged in with cached data
-          if (savedSession) {
-            setIsLoggedIn(true);
-            const cachedChats = getCachedChats();
-            if (cachedChats.length > 0) {
-              setChats(cachedChats);
-            }
-            setIsCheckingAuth(false);
-            return;
-          }
+          console.log('Saved session restore failed:', e);
+          localStorage.removeItem('tg_session');
         }
       }
 

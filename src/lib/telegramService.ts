@@ -15,6 +15,26 @@ let activeClient: TelegramClient | null = null;
 let currentActivePhone: string = '';
 let currentSessionString: string = '';
 const pendingAuths: Record<string, PendingAuth> = {};
+let lastPendingAuth: PendingAuth | null = null;
+let lastPendingPhone: string = '';
+
+export function findPendingAuth(phone: string): PendingAuth | null {
+  if (!phone) return lastPendingAuth || null;
+  const key = getPhoneKey(phone);
+  const clean = normalizePhone(phone);
+
+  if (pendingAuths[key]) return pendingAuths[key];
+  if (pendingAuths[clean]) return pendingAuths[clean];
+  if (pendingAuths[phone]) return pendingAuths[phone];
+
+  for (const k of Object.keys(pendingAuths)) {
+    if (k.endsWith(key) || key.endsWith(k)) {
+      return pendingAuths[k];
+    }
+  }
+
+  return lastPendingAuth || null;
+}
 
 let onNewMessageCallback: ((msgData: any) => void) | null = null;
 let onSystemMessageCallback: ((sysData: any) => void) | null = null;
@@ -434,10 +454,14 @@ export async function sendTelegramCode(phone: string): Promise<{ phoneCodeHash: 
     cleanPhone
   );
 
-  pendingAuths[key] = {
+  const authObj: PendingAuth = {
     client,
     phoneCodeHash: res.phoneCodeHash,
   };
+  pendingAuths[key] = authObj;
+  pendingAuths[cleanPhone] = authObj;
+  lastPendingAuth = authObj;
+  lastPendingPhone = cleanPhone;
 
   return {
     phoneCodeHash: res.phoneCodeHash,
@@ -454,9 +478,9 @@ export async function verifyTelegramCode(
   const cleanCode = normalizeDigits(code.trim());
   const key = getPhoneKey(phone);
 
-  const authData = pendingAuths[key];
-  const client = authData ? authData.client : activeClient;
-  const hash = phoneCodeHash || (authData ? authData.phoneCodeHash : '');
+  const authData = findPendingAuth(phone);
+  const client = authData?.client || activeClient;
+  const hash = phoneCodeHash || authData?.phoneCodeHash || '';
 
   if (!client) {
     throw new Error('لم يتم العثور على جلسة مصادقة نشطة لهذا الرقم. يرجى إدخال الرقم مجدداً وإعادة المحاولة.');
@@ -468,6 +492,8 @@ export async function verifyTelegramCode(
       activeClient = client;
       currentActivePhone = cleanPhone;
       if (pendingAuths[key]) delete pendingAuths[key];
+      if (pendingAuths[cleanPhone]) delete pendingAuths[cleanPhone];
+      lastPendingAuth = null;
 
       setupClientEventHandlers(client);
       const me = (await client.getMe()) as any;
@@ -499,6 +525,8 @@ export async function verifyTelegramCode(
     activeClient = client;
     currentActivePhone = cleanPhone;
     if (pendingAuths[key]) delete pendingAuths[key];
+    if (pendingAuths[cleanPhone]) delete pendingAuths[cleanPhone];
+    lastPendingAuth = null;
 
     setupClientEventHandlers(client);
     const me = (await client.getMe()) as any;
@@ -537,7 +565,8 @@ export async function verifyTelegramPassword(phone: string, password: string) {
   const cleanPassword = normalizeDigits(password.trim());
   const key = getPhoneKey(phone);
 
-  const client = pendingAuths[key]?.client || activeClient;
+  const authData = findPendingAuth(phone);
+  const client = authData?.client || activeClient;
 
   if (!client) {
     throw new Error('جلسة منتهية، يرجى إدخال الرقم من جديد وإعادة المحاولة.');
@@ -555,6 +584,8 @@ export async function verifyTelegramPassword(phone: string, password: string) {
     activeClient = client;
     currentActivePhone = cleanPhone;
     if (pendingAuths[key]) delete pendingAuths[key];
+    if (pendingAuths[cleanPhone]) delete pendingAuths[cleanPhone];
+    lastPendingAuth = null;
 
     setupClientEventHandlers(client);
     const me = (await client.getMe()) as any;
