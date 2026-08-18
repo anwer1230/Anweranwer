@@ -14,6 +14,7 @@ import { ChatAvatar } from './components/ChatAvatar';
 import { TelegramLinkModal } from './components/TelegramLinkModal';
 import { TelegramNotificationBanner, TelegramNotificationItem } from './components/TelegramNotificationBanner';
 import { TelegramUnreadBadge } from './components/TelegramUnreadBadge';
+import { PwaInstallBanner } from './components/PwaInstallBanner';
 import { TelegramApkInstallModal } from './components/TelegramApkInstallModal';
 import { MTProtoSyncModal } from './components/MTProtoSyncModal';
 import { ArchiveSyncModal } from './components/ArchiveSyncModal';
@@ -3666,17 +3667,21 @@ export default function App() {
             <span>{lang === 'ar' ? '📊 استطلاعات رأي متقدمة (Enhanced Polls)' : '📊 Enhanced Polls with Links'}</span>
           </div>
 
-          {/* Telegram Direct APK Installer */}
+          {/* Native PWA Application Installer */}
           <div
             className="drawer-item"
             style={{ color: '#38bdf8' }}
             onClick={() => {
               setDrawerOpen(false);
-              setApkInstallModalOpen(true);
+              if ((window as any).__triggerPwaInstall) {
+                (window as any).__triggerPwaInstall();
+              } else {
+                showToast(lang === 'ar' ? '📲 اضغط على خيارات المتصفح (⋮) ثم اختر "تثبيت التطبيق"' : 'Open browser menu (⋮) and select "Install App"');
+              }
             }}
           >
-            <i className="fas fa-mobile-alt" style={{ color: '#38bdf8' }} />
-            <span>{lang === 'ar' ? '📱 تثبيت تطبيق Telegram APK المباشر' : '📱 Install Telegram APK'}</span>
+            <i className="fas fa-download" style={{ color: '#38bdf8' }} />
+            <span>{lang === 'ar' ? '📱 تثبيت التطبيق مباشرةً (Install App)' : '📱 Install App'}</span>
           </div>
 
           {/* Local Storage Offline Cache Status */}
@@ -3775,8 +3780,14 @@ export default function App() {
           <button
             className="menu-btn"
             style={{ color: '#38bdf8' }}
-            onClick={() => setApkInstallModalOpen(true)}
-            title={lang === 'ar' ? 'تثبيت تطبيق Telegram APK المباشر' : 'Install Telegram APK'}
+            onClick={() => {
+              if ((window as any).__triggerPwaInstall) {
+                (window as any).__triggerPwaInstall();
+              } else {
+                showToast(lang === 'ar' ? '📲 اضغط على خيارات المتصفح (⋮) ثم اختر "تثبيت التطبيق"' : 'Open browser menu (⋮) and select "Install App"');
+              }
+            }}
+            title={lang === 'ar' ? 'تثبيت التطبيق على جهازك' : 'Install App'}
           >
             <i className="fas fa-download" />
           </button>
@@ -5058,6 +5069,9 @@ export default function App() {
         isOpen={syncBackupModalOpen}
         onClose={() => setSyncBackupModalOpen(false)}
       />
+
+      {/* ══ NATIVE PWA INSTALL NOTIFICATION BANNER (ONLY IN BROWSER/URL, HIDDEN IN STANDALONE/INSTALLED APP) ══ */}
+      <PwaInstallBanner />
     </div>
   );
 }
