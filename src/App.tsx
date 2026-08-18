@@ -48,6 +48,7 @@ import {
   getStorageCacheSummary,
 } from './lib/storageCache';
 import { syncEngine } from './lib/sync';
+import { indexedDbService } from './lib/indexedDbService';
 import { sortChatsWithLastActivePriority, isGroupChat } from './utils/chatSorting';
 import './system-messages.css';
 
@@ -2186,15 +2187,50 @@ export default function App() {
     };
   }, [isLoggedIn, currentChatId]);
 
-  // ── LOAD REAL CHATS & DRAFTS ──────────────────────────────────────────────
+  // ── LOAD REAL CHATS & DRAFTS (IndexedDB + Cloud Sync) ──────────────────────
   const loadDrafts = async () => {
     try {
+      // 1. Load local drafts from IndexedDB (offline & persistent across sessions)
+      const idbDrafts = await indexedDbService.getAllDrafts().catch(() => ({}));
+      const mergedDrafts: Record<string, string> = {};
+      Object.keys(idbDrafts).forEach((cid) => {
+        if (idbDrafts[cid]?.text) {
+          mergedDrafts[cid] = idbDrafts[cid].text;
+        }
+      });
+
+      // 2. Fetch server cloud drafts and merge
       const r = await fetch('/api/drafts');
       const d = await r.json();
       if (d.success && d.drafts) {
-        setDrafts(d.drafts);
+        Object.keys(d.drafts).forEach((cid) => {
+          if (d.drafts[cid]) {
+            mergedDrafts[cid] = d.drafts[cid];
+            // Sync cloud draft back to IndexedDB
+            indexedDbService.saveDraft(cid, d.drafts[cid]).catch(() => {});
+          }
+        });
       }
-    } catch (e) {}
+      setDrafts(mergedDrafts);
+    } catch (e) {
+      console.warn('[Drafts] Error loading drafts:', e);
+    }
+  };
+
+  // Helper to persist draft locally to IndexedDB & sync to cloud
+  const handleDraftChange = (text: string) => {
+    setInputText(text);
+    if (!currentChatId) return;
+    const cid = String(currentChatId);
+    setDrafts((prev) => ({ ...prev, [cid]: text }));
+
+    // Persist immediately to IndexedDB
+    indexedDbService.saveDraft(cid, text).catch((err) => {
+      console.warn('[IndexedDB] Failed to save draft:', err);
+    });
+
+    // Sync cloud draft with debounce
+    syncEngine.saveCloudDraft(cid, text).catch(() => {});
   };
 
   const loadChats = async () => {
@@ -2376,6 +2412,15 @@ export default function App() {
 
     if (text) {
       setInputText('');
+      if (cid) {
+        setDrafts((prev) => {
+          const next = { ...prev };
+          delete next[String(cid)];
+          return next;
+        });
+        indexedDbService.deleteDraft(cid).catch(() => {});
+        syncEngine.saveCloudDraft(cid, '').catch(() => {});
+      }
       const tmpId = `tmp_${Date.now()}`;
       const optimisticMsg: MessageItem = {
         id: tmpId,
@@ -4587,7 +4632,7 @@ export default function App() {
                       placeholder={lang === 'ar' ? 'اكتب رسالة...' : 'Write a message...'}
                       value={inputText}
                       rows={1}
-                      onChange={(e) => setInputText(e.target.value)}
+                      onChange={(e) => handleDraftChange(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
@@ -4667,7 +4712,7 @@ export default function App() {
                     <span
                       key={emoji}
                       className="emoji-item"
-                      onClick={() => setInputText((prev) => prev + emoji)}
+                      onClick={() => handleDraftChange(inputText + emoji)}
                     >
                       {emoji}
                     </span>

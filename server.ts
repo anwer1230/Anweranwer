@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import { initialUserProfile, initialChats, initialMessagesMap, initialFolders } from './src/data/mockInitialData';
@@ -29,8 +30,25 @@ import {
   joinTelegramChat,
 } from './src/lib/telegramService';
 
+// Read standalone config from config.json if available
+let fileConfig: Record<string, any> = {};
+try {
+  const configPath = path.join(process.cwd(), 'config.json');
+  if (fs.existsSync(configPath)) {
+    fileConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  }
+} catch (e) {
+  console.warn('Could not read config.json:', e);
+}
+
+// Automatically populate process.env from config.json
+if (fileConfig.NODE_ENV && !process.env.NODE_ENV) process.env.NODE_ENV = fileConfig.NODE_ENV;
+if (fileConfig.TDLIB_API_ID && !process.env.TDLIB_API_ID) process.env.TDLIB_API_ID = String(fileConfig.TDLIB_API_ID);
+if (fileConfig.TDLIB_API_HASH && !process.env.TDLIB_API_HASH) process.env.TDLIB_API_HASH = String(fileConfig.TDLIB_API_HASH);
+if (fileConfig.PORT && !process.env.PORT) process.env.PORT = String(fileConfig.PORT);
+
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(fileConfig.PORT || process.env.PORT) || 3000;
 
 app.use(express.json());
 
