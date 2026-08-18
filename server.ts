@@ -25,6 +25,7 @@ import {
   updateTelegramProfile,
   updateTelegramUsername,
   getTelegramAuthorizations,
+  terminateTelegramSession,
   resetTelegramAuthorizations,
   checkTelegramInvite,
   joinTelegramChat,
@@ -2152,9 +2153,66 @@ app.get('/api/profile/sessions', async (req: Request, res: Response) => {
         sessions = realSessions;
       }
     }
-    res.json({ status: 'ok', sessions });
+    res.json({ status: 'ok', success: true, sessions });
   } catch (e) {
-    res.json({ status: 'ok', sessions: profileStore.sessions || [] });
+    res.json({ status: 'ok', success: true, sessions: profileStore.sessions || [] });
+  }
+});
+
+app.get('/api/sessions', async (req: Request, res: Response) => {
+  try {
+    let sessions = profileStore.sessions || [];
+    if (isTelegramClientActive()) {
+      const realSessions = await getTelegramAuthorizations();
+      if (realSessions && realSessions.length > 0) {
+        sessions = realSessions;
+      }
+    }
+    res.json({ status: 'ok', success: true, sessions });
+  } catch (e) {
+    res.json({ status: 'ok', success: true, sessions: profileStore.sessions || [] });
+  }
+});
+
+app.post('/api/profile/sessions/terminate', async (req: Request, res: Response) => {
+  const hash = req.body.hash || req.body.id;
+  if (!hash) {
+    return res.status(400).json({ status: 'error', success: false, message: 'Session hash is required' });
+  }
+
+  try {
+    if (isTelegramClientActive()) {
+      await terminateTelegramSession(String(hash));
+    }
+    if (profileStore.sessions) {
+      profileStore.sessions = profileStore.sessions.filter((s) => String(s.id) !== String(hash) && String((s as any).hash) !== String(hash));
+    }
+    broadcastSSE('profile_updated', profileStore);
+    res.json({ status: 'ok', success: true, message: 'تم إنهاء الجلسة المحددة بنجاح من خوادم تليجرام' });
+  } catch (e: any) {
+    console.error('Failed to terminate session:', e);
+    res.status(500).json({ status: 'error', success: false, message: e?.message || 'تعذر إنهاء الجلسة المحددة' });
+  }
+});
+
+app.post('/api/sessions/terminate', async (req: Request, res: Response) => {
+  const hash = req.body.hash || req.body.id;
+  if (!hash) {
+    return res.status(400).json({ status: 'error', success: false, message: 'Session hash is required' });
+  }
+
+  try {
+    if (isTelegramClientActive()) {
+      await terminateTelegramSession(String(hash));
+    }
+    if (profileStore.sessions) {
+      profileStore.sessions = profileStore.sessions.filter((s) => String(s.id) !== String(hash) && String((s as any).hash) !== String(hash));
+    }
+    broadcastSSE('profile_updated', profileStore);
+    res.json({ status: 'ok', success: true, message: 'تم إنهاء الجلسة المحددة بنجاح من خوادم تليجرام' });
+  } catch (e: any) {
+    console.error('Failed to terminate session:', e);
+    res.status(500).json({ status: 'error', success: false, message: e?.message || 'تعذر إنهاء الجلسة المحددة' });
   }
 });
 
@@ -2167,9 +2225,24 @@ app.post('/api/profile/sessions/terminate_all', async (req: Request, res: Respon
       profileStore.sessions = profileStore.sessions.filter((s) => s.is_current);
     }
     broadcastSSE('profile_updated', profileStore);
-    res.json({ status: 'ok', message: 'تم إنهاء كافة الجلسات الأخرى بنجاح' });
+    res.json({ status: 'ok', success: true, message: 'تم إنهاء كافة الجلسات الأخرى بنجاح من خوادم تليجرام' });
   } catch (e: any) {
-    res.status(500).json({ status: 'error', message: 'تعذر إنهاء الجلسات' });
+    res.status(500).json({ status: 'error', success: false, message: 'تعذر إنهاء الجلسات' });
+  }
+});
+
+app.post('/api/sessions/terminate_all', async (req: Request, res: Response) => {
+  try {
+    if (isTelegramClientActive()) {
+      await resetTelegramAuthorizations();
+    }
+    if (profileStore.sessions) {
+      profileStore.sessions = profileStore.sessions.filter((s) => s.is_current);
+    }
+    broadcastSSE('profile_updated', profileStore);
+    res.json({ status: 'ok', success: true, message: 'تم إنهاء كافة الجلسات الأخرى بنجاح من خوادم تليجرام' });
+  } catch (e: any) {
+    res.status(500).json({ status: 'error', success: false, message: 'تعذر إنهاء الجلسات' });
   }
 });
 

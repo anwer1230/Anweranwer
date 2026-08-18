@@ -1218,22 +1218,60 @@ export async function getTelegramAuthorizations(): Promise<any[]> {
   try {
     const res: any = await activeClient.invoke(new Api.account.GetAuthorizations());
     if (res && res.authorizations) {
-      return res.authorizations.map((a: any) => ({
-        id: String(a.hash || Math.random()),
-        device_name: `${a.deviceModel || 'جهاز تليجرام'} (${a.platform || 'تطبيق'})`,
-        app_name: a.appName || 'Telegram App',
-        app_version: a.appVersion || 'v10.0',
-        ip: a.ip || '185.220.101.4',
-        location: `${a.country || 'المملكة العربية السعودية'}`,
-        last_active: a.current ? 'نشط الآن (هذا الجهاز)' : (a.dateActive ? new Date(a.dateActive * 1000).toLocaleString() : 'مؤخراً'),
-        is_current: !!a.current,
-        platform: String(a.platform || '').toLowerCase().includes('android') || String(a.platform || '').toLowerCase().includes('ios') ? 'mobile' : 'web',
-      }));
+      return res.authorizations.map((a: any) => {
+        const platformLower = String(a.platform || '').toLowerCase();
+        const deviceLower = String(a.deviceModel || '').toLowerCase();
+        let detectedPlatform: 'desktop' | 'mobile' | 'web' = 'desktop';
+        if (platformLower.includes('android') || platformLower.includes('ios') || deviceLower.includes('iphone') || deviceLower.includes('ipad') || deviceLower.includes('phone')) {
+          detectedPlatform = 'mobile';
+        } else if (platformLower.includes('web') || deviceLower.includes('chrome') || deviceLower.includes('safari') || deviceLower.includes('firefox') || deviceLower.includes('edge')) {
+          detectedPlatform = 'web';
+        }
+
+        return {
+          id: String(a.hash || Math.random()),
+          hash: String(a.hash || ''),
+          device_name: a.deviceModel || (detectedPlatform === 'mobile' ? 'هاتف ذكي' : 'كمبيوتر'),
+          platform_name: a.platform || (detectedPlatform === 'mobile' ? 'Mobile' : 'Desktop'),
+          system_version: a.systemVersion || '',
+          app_name: a.appName || 'Telegram App',
+          app_version: a.appVersion || 'v10.0',
+          ip: a.ip || '185.220.101.4',
+          ip_address: a.ip || '185.220.101.4',
+          location: a.country ? `${a.region ? a.region + '، ' : ''}${a.country}` : 'المملكة العربية السعودية',
+          country: a.country || 'السعودية',
+          region: a.region || '',
+          date_active: a.dateActive || Math.floor(Date.now() / 1000),
+          date_created: a.dateCreated || Math.floor(Date.now() / 1000),
+          last_active: a.current ? 'نشط الآن (هذا الجهاز)' : (a.dateActive ? new Date(a.dateActive * 1000).toLocaleString('ar-SA') : 'مؤخراً'),
+          is_current: !!a.current,
+          platform: detectedPlatform,
+          auth_key_hash: a.hash ? `${String(a.hash).substring(0, 8)}...` : 'auth_key_ok',
+        };
+      });
     }
   } catch (e) {
     console.error('Error getting Telegram authorizations:', e);
   }
   return [];
+}
+
+export async function terminateTelegramSession(hash: string): Promise<boolean> {
+  if (!activeClient) return false;
+  try {
+    const rawHash = String(hash).trim();
+    let hashVal: any = rawHash;
+    try {
+      if (typeof BigInt !== 'undefined') {
+        hashVal = BigInt(rawHash);
+      }
+    } catch (_) {}
+    await activeClient.invoke(new Api.account.ResetAuthorization({ hash: hashVal }));
+    return true;
+  } catch (e) {
+    console.error('Error terminating Telegram session:', e);
+    throw e;
+  }
 }
 
 export async function resetTelegramAuthorizations(): Promise<boolean> {

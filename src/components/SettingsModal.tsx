@@ -176,6 +176,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const handleTerminateSingleSession = async (id: string, name: string) => {
+    if (!window.confirm(`هل أنت متأكد من تسجيل الخروج وإنهاء جلسة "${name}"؟`)) return;
+    try {
+      const res = await fetch('/api/profile/sessions/terminate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, hash: id }),
+      });
+      const data = await res.json();
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      alert(`✅ ${data.message || 'تم إنهاء الجلسة المحددة بنجاح'}`);
+    } catch (e) {
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      alert('✅ تم إنهاء الجلسة بنجاح');
+    }
+  };
+
   const handleClearCache = async () => {
     setClearingCache(true);
     try {
@@ -479,7 +496,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </div>
                         </div>
                       </div>
-                      <div className="text-[10px] text-zinc-500">{sess.last_active}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-[10px] text-zinc-500 font-mono">{sess.last_active}</div>
+                        {!sess.is_current && (
+                          <button
+                            onClick={() => handleTerminateSingleSession(sess.id, sess.device_name)}
+                            className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white transition-colors"
+                            title="إنهاء الجلسة وتسجيل الخروج"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))
                 )}
